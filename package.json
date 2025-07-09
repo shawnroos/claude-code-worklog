@@ -1,0 +1,41 @@
+{
+  "name": "claude-work-tracker",
+  "version": "1.0.0",
+  "description": "Automated work tracking system for Claude Code with persistent todo management and cross-worktree awareness",
+  "main": "scripts/session-init.sh",
+  "scripts": {
+    "install": "./install.sh",
+    "uninstall": "./uninstall.sh", 
+    "test": "scripts/work-presentation.sh test",
+    "setup": "scripts/setup-wizard.sh"
+  },
+  "keywords": [
+    "claude-code",
+    "work-tracking", 
+    "automation",
+    "todo-management",
+    "git-worktree",
+    "productivity"
+  ],
+  "author": "Shawn Roos",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shawnroos/claude-work-tracker.git"
+  },
+  "bin": {
+    "save": "./scripts/save.sh",
+    "work-status": "./scripts/work-status.sh", 
+    "work-conflicts": "./scripts/work-conflicts.sh",
+    "work-context": "./scripts/work-context.sh",
+    "work-presentation": "./scripts/work-presentation.sh"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "peerDependencies": {
+    "jq": "*"
+  }
+}

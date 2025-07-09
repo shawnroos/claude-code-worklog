@@ -1,0 +1,67 @@
+{
+  "presentation": {
+    "mode": "summary",
+    "show_notifications": true,
+    "show_session_summary": true,
+    "show_conflicts_alert": true,
+    "emoji_style": "minimal_colored"
+  },
+  "session": {
+    "auto_restore": true,
+    "auto_create_todos": false,
+    "show_startup_context": true
+  },
+  "modes": {
+    "quiet": {
+      "show_notifications": false,
+      "show_session_summary": false,
+      "show_conflicts_alert": false
+    },
+    "summary": {
+      "show_notifications": true,
+      "show_session_summary": true,
+      "show_conflicts_alert": true
+    },
+    "verbose": {
+      "show_notifications": true,
+      "show_session_summary": true,
+      "show_conflicts_alert": true,
+      "show_worktree_details": true,
+      "show_todo_diffs": true
+    }
+  },
+  "emoji_styles": {
+    "minimal_colored": {
+      "completed": "\033[32m✓\033[0m",
+      "pending": "\033[33m○\033[0m",
+      "in_progress": "\033[36m●\033[0m",
+      "conflict": "\033[31m!\033[0m",
+      "sync": "\033[34m↻\033[0m",
+      "success": "\033[32m★\033[0m"
+    },
+    "modern": {
+      "completed": "✅",
+      "pending": "🔄",
+      "in_progress": "⚡",
+      "conflict": "⚠️",
+      "sync": "🔄",
+      "success": "🎯"
+    },
+    "classic": {
+      "completed": "[✓]",
+      "pending": "[○]",
+      "in_progress": "[●]",
+      "conflict": "[!]",
+      "sync": "[↻]",
+      "success": "[★]"
+    },
+    "minimal": {
+      "completed": "✓",
+      "pending": "○",
+      "in_progress": "●",
+      "conflict": "!",
+      "sync": "↻",
+      "success": "★"
+    }
+  }
+}

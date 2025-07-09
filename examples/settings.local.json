@@ -1,0 +1,64 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run lint)",
+      "WebFetch(domain:community.amplitude.com)",
+      "Bash(timeout 30s npm run build)",
+      "Bash(touch:*)",
+      "Bash(~/.claude/scripts/work-status.sh:*)",
+      "Bash(~/.claude/scripts/work-presentation.sh:*)",
+      "Bash(~/.claude/scripts/update-global-state.sh:*)",
+      "Bash(~/.claude/scripts/restore-todos.sh:*)",
+      "Bash(~/.claude/scripts/work.sh:*)",
+      "Bash(~/.claude/scripts/work-conflicts.sh:*)",
+      "Bash(~/.claude/scripts/work-context.sh:*)",
+      "Bash(touch:*)",
+      "Bash(node:*)",
+      "Bash(~/.claude/scripts/session-init.sh:*)",
+      "Bash(~/.claude/scripts/save.sh:*)",
+      "Bash(npx:*)",
+      "Bash(npm search:*)",
+      "Bash(npm info:*)",
+      "Bash(rg:*)",
+      "Bash(npx:*)",
+      "Bash(node:*)",
+      "Bash(npm test)",
+      "Bash(grep:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run build:*)",
+      "Bash(git add:*)",
+      "Bash(rm:*)",
+      "Bash(ls:*)",
+      "Bash(open .)",
+      "Bash(find:*)",
+      "Bash(./scripts/work-presentation.sh test:*)",
+      "Bash(./scripts/setup-wizard.sh:*)",
+      "Bash(mv:*)",
+      "Bash(./scripts/save.sh:*)",
+      "Bash(~/.claude/scripts/save.sh:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": []
+  },
+  "commands": {
+    "/save": {
+      "command": "~/.claude/scripts/save.sh",
+      "description": "Save current work state manually"
+    },
+    "/work": {
+      "command": "~/.claude/scripts/work.sh",
+      "description": "Manual work tracking commands: load, save, view, status, conflicts"
+    }
+  },
+  "hooks": {
+    "session_complete": {
+      "command": "~/.claude/scripts/session-complete.sh",
+      "description": "Automatically capture work state when Claude sessions end"
+    },
+    "tool_complete": {
+      "command": "~/.claude/scripts/tool-complete.sh",
+      "description": "Automatically backup todos after TodoWrite operations"
+    }
+  }
+}
