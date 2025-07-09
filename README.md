@@ -1,12 +1,18 @@
 # Claude Code Work Tracking System
 
-A comprehensive work tracking system for Claude Code that provides persistent todo management and cross-worktree awareness.
+A comprehensive work tracking system for Claude Code that provides persistent todo management, cross-worktree awareness, and manual `/work` slash commands.
 
 ## 🚀 Quick Install
 
-**One-line installation:**
+**One-line installation (GitHub):**
 ```bash
-curl -sSL https://raw.githubusercontent.com/shawnroos/claude-code-worklog/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/shawnroos/claude-work-tracker/main/install.sh | bash
+```
+
+**Local installation:**
+```bash
+# Clone or download this repository, then:
+./install.sh
 ```
 
 **After installation:**
@@ -16,6 +22,9 @@ curl -sSL https://raw.githubusercontent.com/shawnroos/claude-code-worklog/main/i
 
 # Test the system
 ~/.claude/scripts/work-presentation.sh test
+
+# Try the new /work command
+/work
 ```
 
 **That's it!** The system starts working automatically in your next Claude session.
@@ -26,6 +35,7 @@ curl -sSL https://raw.githubusercontent.com/shawnroos/claude-code-worklog/main/i
 
 - [🚀 Quick Install](#-quick-install)
 - [✨ Features](#features)
+- [⚙️ Manual Commands](#manual-commands)
 - [🎮 Usage](#usage)
 - [⚙️ Configuration](#configuration)
 - [🔧 Manual Installation](#manual-installation)
@@ -40,7 +50,15 @@ curl -sSL https://raw.githubusercontent.com/shawnroos/claude-code-worklog/main/i
 - **Persistent Todo Tracking**: Todos survive across Claude sessions
 - **Git Context Awareness**: Associates work with specific branches and worktrees
 - **Cross-Worktree Intelligence**: Detects related work across different feature branches
+- **Manual `/work` Commands**: Full control over work state with slash commands
 - **Hybrid Architecture**: Local efficiency + global visibility when needed
+
+### ⚡ Manual Commands
+- **`/work load`**: Restore work state for current or specific branch
+- **`/work save`**: Save current work state with optional notes
+- **`/work view`**: Global work overview with optional filtering
+- **`/work status`**: Current session status and recent activity
+- **`/work conflicts`**: Find related work across worktrees
 
 ### 🎛️ Presentation Control
 - **Three modes**: quiet, summary (default), verbose
@@ -51,6 +69,37 @@ curl -sSL https://raw.githubusercontent.com/shawnroos/claude-code-worklog/main/i
 - **Session hooks**: Automatically capture completed work and save incomplete todos
 - **Background sync**: Updates global state without blocking your workflow
 - **Conflict detection**: Alerts when related work exists in other worktrees
+
+## Manual Commands
+
+The `/work` slash command provides manual control over all automated features:
+
+### Basic Usage
+```bash
+/work                    # Show help and available commands
+/work load               # Load work state for current branch
+/work save              # Save current work state
+/work view              # Global work overview
+/work status            # Current session status
+```
+
+### Advanced Usage
+```bash
+/work load feature-auth  # Load work state from specific branch
+/work save "checkpoint"  # Save with descriptive note
+/work view auth         # View only auth-related work
+/work conflicts api     # Find API-related work conflicts
+```
+
+### Command Details
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/work load [branch]` | Restore work state and todos | `/work load feature-login` |
+| `/work save [note]` | Save current work state manually | `/work save "api refactor done"` |
+| `/work view [filter]` | View global work overview | `/work view authentication` |
+| `/work status` | Show current session and recent activity | `/work status` |
+| `/work conflicts <keyword>` | Find related work across worktrees | `/work conflicts database` |
 
 ## Manual Installation
 
@@ -72,7 +121,8 @@ If you prefer to install manually or want to understand the system better:
 │   ├── session-complete.sh       # Session end hook
 │   ├── tool-complete.sh          # Todo update hook
 │   ├── update-global-state.sh    # Global state aggregation
-│   ├── restore-todos.sh          # Todo restoration
+│   ├── restore-todos.sh          # Todo restoration  
+│   ├── work.sh                   # Manual /work command
 │   ├── work-*.sh                 # Cross-worktree commands
 │   └── work-presentation.sh      # Display control
 ├── work-state/                   # Global work aggregation
