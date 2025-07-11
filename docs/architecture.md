@@ -4,15 +4,15 @@ Deep dive into the Claude Code Work Tracking System's architecture, design decis
 
 ## 🏗️ System Overview
 
-The Claude Code Work Tracking System is a **distributed work intelligence platform** that captures, preserves, and organizes development work across multiple dimensions:
+The Claude Code Work Tracking System is a **local work intelligence platform** that captures, preserves, and organizes development work within your current project:
 
 ```
 Claude Code ↔ Hook System ↔ Work Intelligence Engine ↔ MCP Server
      ↓             ↓                    ↓                  ↓
   Sessions    Work Capture        Data Storage      Programmatic API
      ↓             ↓                    ↓                  ↓
-  Git Context  Intelligence      Cross-Worktree     External Tools
-              Classification      Aggregation
+  Git Context  Intelligence      Local Project      External Tools
+              Classification        Storage
 ```
 
 ## 🎯 Core Components
@@ -29,11 +29,11 @@ Claude Code ↔ Hook System ↔ Work Intelligence Engine ↔ MCP Server
 - **Cross-Reference**: Link related work across sessions
 - **Aggregation**: Summarize work patterns and insights
 
-### 3. **Storage Layer** - Multi-Tier Persistence
+### 3. **Storage Layer** - Local Persistence
 - **Local Session State**: Immediate work context
 - **Project State**: Cross-session work aggregation
-- **Global State**: Multi-project intelligence
 - **Work Intelligence**: Plans, proposals, insights
+- **Branch Context**: Git branch-specific storage
 
 ### 4. **MCP Server** - Programmatic Interface
 - **Tool Endpoints**: RESTful-style work operations
@@ -161,13 +161,10 @@ Claude Code Event → Hook Trigger → Data Capture → Intelligence Processing 
 
 ```
 ~/.claude/                          # Global configuration
-├── work-state/                     # Multi-project aggregation
-│   ├── PROJECT_OVERVIEW.md         # Cross-project summary
+├── work-state/                     # Project state storage
 │   └── projects/                   # Per-project state
 │       └── {project}/
-│           ├── ACTIVE_WORK.md       # Project overview
-│           └── worktrees/           # Per-worktree state
-│               └── {worktree}.json  # Worktree snapshot
+│           └── ACTIVE_WORK.md      # Project overview
 ├── work-intelligence/              # Intelligence capture
 │   └── {session}_{type}.json       # Individual intelligence items
 ├── todos/                          # Session todos
@@ -306,46 +303,44 @@ class WorkStateManager {
 }
 ```
 
-## 🔀 Cross-Worktree Intelligence
+## 🔀 Branch-Based Intelligence
 
-### Worktree Detection and Management
+### Branch Context Management
 
 ```typescript
-interface WorktreeContext {
-  main_worktree: string        // Primary worktree path
-  current_worktree: string     // Current worktree name
-  worktree_type: 'main' | 'feature' | 'hotfix'
-  related_worktrees: string[]  // Connected worktrees
+interface BranchContext {
+  current_branch: string        // Active git branch
+  branch_type: 'main' | 'feature' | 'hotfix' | 'bugfix'
+  base_branch: string          // Parent branch
+  work_items: WorkItem[]       // Branch-specific work
 }
 ```
 
-### Conflict Detection Algorithm
+### Branch Switching
 
 ```typescript
-class ConflictDetector {
-  detectConflicts(keyword: string): ConflictReport {
-    // 1. Search across all worktrees
-    const allWorktrees = this.getProjectWorktrees()
+class BranchManager {
+  switchContext(newBranch: string): void {
+    // 1. Save current branch work state
+    this.saveCurrentBranchState()
     
-    // 2. Find matching work items
-    const matches = allWorktrees.flatMap(wt => 
-      this.searchWorktreeItems(wt, keyword)
-    )
+    // 2. Load new branch work state
+    const branchState = this.loadBranchState(newBranch)
     
-    // 3. Analyze for potential conflicts
-    return this.analyzeConflicts(matches)
+    // 3. Restore work context
+    this.restoreWorkContext(branchState)
   }
 }
 ```
 
-### Global State Aggregation
+### Local State Organization
 
 ```typescript
-interface GlobalState {
-  projects: Map<string, ProjectState>
-  cross_project_insights: CrossProjectInsight[]
-  global_patterns: WorkPattern[]
-  conflict_warnings: ConflictWarning[]
+interface LocalState {
+  project: ProjectState
+  current_branch: BranchContext
+  work_history: WorkItem[]
+  intelligence: WorkIntelligence[]
 }
 ```
 

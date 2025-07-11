@@ -4,13 +4,14 @@ Complete reference for the Claude Work Tracker MCP server tools and endpoints.
 
 ## 🛠️ MCP Server Overview
 
-The Claude Work Tracker MCP server provides programmatic access to all work tracking functionality through the Model Context Protocol. It exposes 8 tools for comprehensive work state management.
+The Claude Work Tracker MCP server provides programmatic access to all work tracking functionality through the Model Context Protocol. It exposes 7 tools for comprehensive local work state management.
 
 ### Server Information
 - **Name**: `claude-work-tracker`
 - **Version**: `1.0.0`
 - **Protocol**: Model Context Protocol (MCP)
 - **Transport**: stdio
+- **Focus**: Local project work tracking
 
 ## 🔧 Tools
 
@@ -27,7 +28,6 @@ Get current work state including active todos, recent findings, and session summ
   active_todos: WorkItem[]
   recent_findings: Finding[]
   session_summary: SessionSummary
-  cross_worktree_conflicts?: string[]
 }
 ```
 
@@ -207,34 +207,6 @@ Get summary of current session or a specific session by ID.
 }
 ```
 
----
-
-### `get_cross_worktree_status`
-
-Get work status across different git worktrees with optional keyword filtering.
-
-**Parameters:**
-- `keyword` (string, optional): Keyword to filter related work
-
-**Returns:**
-```typescript
-{
-  output: string  // Formatted output from work-conflicts.sh or work-status.sh
-}
-```
-
-**Example Usage:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "get_cross_worktree_status",
-    "arguments": {
-      "keyword": "authentication"
-    }
-  }
-}
-```
 
 ---
 

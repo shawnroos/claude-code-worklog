@@ -279,29 +279,32 @@ cd /path/to/feature/worktree
 # This is usually a path resolution issue
 ```
 
-### Cross-Worktree Issues
+### Branch Switching Issues
 
-#### **Issue: Conflicts Not Detected**
+#### **Issue: Work State Not Loading for Branch**
 ```
-Cross-worktree conflicts not showing
+Work state not restored when switching branches
 ```
 
 **Diagnosis:**
 ```bash
-# Check global state
-ls ~/.claude/work-state/projects/
+# Check current branch
+git branch --show-current
 
-# Test conflict detection
-~/.claude/scripts/work-conflicts.sh authentication
+# Check for branch-specific work state
+ls .claude-work/
+
+# Check pending todos
+cat .claude-work/PENDING_TODOS.json | jq .
 ```
 
 **Solution:**
 ```bash
-# Update global state manually
-~/.claude/scripts/update-global-state.sh $(pwd) $(basename $(pwd)) $(git branch --show-current)
+# Manually load work state for branch
+~/.claude/scripts/work.sh load branch-name
 
-# Check project naming consistency
-basename $(pwd)
+# Or save current state first
+~/.claude/scripts/work.sh save "checkpoint before switch"
 ```
 
 ## 🔧 Advanced Troubleshooting
@@ -327,8 +330,8 @@ cat ~/.claude/todos/latest-session.json | jq .
 # Check work intelligence format
 cat ~/.claude/work-intelligence/latest-intelligence.json | jq .
 
-# Check global state
-cat ~/.claude/work-state/PROJECT_OVERVIEW.md
+# Check local work state
+cat .claude-work/WORK_HISTORY.md
 ```
 
 ### Reset Components

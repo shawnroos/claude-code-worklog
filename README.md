@@ -27,8 +27,8 @@ npm start
 ### 🎯 **Core Functionality**
 - **Persistent Todo Tracking** - Todos survive across Claude sessions
 - **Work Intelligence Capture** - Automatically captures plans, proposals, and strategic insights
-- **Git Context Awareness** - Associates work with specific branches and worktrees
-- **Cross-Worktree Intelligence** - Detects related work across different feature branches
+- **Git Context Awareness** - Associates work with specific branches
+- **Local Project Focus** - Efficient tracking within current project
 - **MCP Server Integration** - Programmatic access via Model Context Protocol
 
 ### 🧠 **Work Intelligence System**
@@ -42,9 +42,8 @@ npm start
 ### ⚡ **Manual Commands**
 - **`/work load`** - Restore work state for current or specific branch
 - **`/work save`** - Save current work state with optional notes
-- **`/work view`** - Global work overview with optional filtering
+- **`/work view`** - View work overview with optional filtering
 - **`/work status`** - Current session status and recent activity
-- **`/work conflicts`** - Find related work across worktrees
 
 ## 📚 Documentation
 
@@ -53,7 +52,6 @@ npm start
 - **[Architecture](docs/architecture.md)** - System design and data flow
 - **[Configuration](docs/configuration.md)** - Customization and settings
 - **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
-- **[Hook System](docs/hooks.md)** - Developing custom hooks
 - **[Developer Guide](docs/development.md)** - Contributing and building
 
 ## 🔧 Quick Commands
@@ -71,8 +69,7 @@ npm start
 ```bash
 /work load feature-auth  # Load work state from specific branch
 /work save "checkpoint"  # Save with descriptive note
-/work view auth         # View only auth-related work
-/work conflicts api     # Find API-related work conflicts
+/work view auth         # View auth-related work
 ```
 
 ## 🛠️ MCP Server
@@ -95,7 +92,7 @@ npm start
 }
 ```
 
-**Available Tools:** `get_work_state`, `save_plan`, `save_proposal`, `search_work_items`, `get_session_summary`, `get_cross_worktree_status`, `load_work_state`, `save_work_state`
+**Available Tools:** `get_work_state`, `save_plan`, `save_proposal`, `search_work_items`, `get_session_summary`, `load_work_state`, `save_work_state`
 
 ## 🎯 Work Intelligence Types
 
@@ -114,10 +111,10 @@ The system captures and categorizes:
 - Context-aware restoration based on current branch
 - Comprehensive work intelligence across sessions
 
-### For Multi-Worktree Development
-- Coordinate work and decisions across feature branches
-- Prevent duplicate effort on similar architectural decisions
-- Cross-worktree strategic insight sharing
+### For Branch-Based Development
+- Track work separately for each git branch
+- Maintain clean work history per feature
+- Easy context switching between branches
 
 ### For AI-Assisted Development
 - Preserve Claude's planning and strategic insights
