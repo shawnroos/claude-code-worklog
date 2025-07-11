@@ -184,6 +184,73 @@ Claude Code Event → Hook Trigger → Data Capture → Intelligence Processing 
 └── current_todos.json              # Live session backup
 ```
 
+## 🎯 Claude Code Hook Integration
+
+### Overview
+The work tracking system integrates directly with Claude Code's hook events to provide automatic, transparent work preservation without requiring explicit tool calls.
+
+### Supported Hook Events
+
+#### **PreCompact Hook**
+- **Trigger**: Before context compaction (manual `/compact` or automatic when context window is full)
+- **Purpose**: Critical work preservation before context loss
+- **Actions**:
+  - Save current work state with compaction context
+  - Analyze incomplete todos and defer them to future work
+  - Ensure no work is lost during context reduction
+
+#### **Stop Hook**  
+- **Trigger**: When Claude Code agent finishes responding
+- **Purpose**: Session completion work capture
+- **Actions**:
+  - Save final session work state
+  - Capture session completion context
+  - Prepare for potential session handover
+
+#### **PostToolUse Hook**
+- **Trigger**: After any tool completes successfully
+- **Purpose**: Track significant development activity
+- **Actions**:
+  - Monitor significant tools (Edit, MultiEdit, Write, Bash, git, npm, etc.)
+  - Conditionally save work state when substantial work occurs
+  - Build tool usage intelligence
+
+### Hook Implementation Architecture
+
+```
+Claude Code Event → Hook Script → Work Client → Work Tracking Scripts → Data Storage
+```
+
+#### **Hook Scripts** (`~/.claude/hooks/`)
+- `pre-compact-hook.sh` - Context preservation before compaction
+- `stop-hook.sh` - Session completion work capture  
+- `post-tool-hook.sh` - Tool activity monitoring
+- `mcp-client.sh` - Common interface to work tracking system
+
+#### **Configuration** (`~/.claude/settings.json`)
+```json
+{
+  "hooks": {
+    "PreCompact": {
+      "Bash": "~/.claude/hooks/pre-compact-hook.sh"
+    },
+    "Stop": {
+      "Bash": "~/.claude/hooks/stop-hook.sh"
+    },
+    "PostToolUse": {
+      "Bash": "~/.claude/hooks/post-tool-hook.sh \"$TOOL_NAME\" \"$TOOL_INPUT\" \"$TOOL_RESPONSE\""
+    }
+  }
+}
+```
+
+### Benefits
+
+- **Zero-friction work preservation** - Never lose work during compaction
+- **Automatic session continuity** - Work state preserved across sessions without explicit commands
+- **Intelligent work capture** - Context-aware saving based on actual development activity
+- **Transparent operation** - Works behind the scenes without interrupting workflow
+
 ### Data Persistence Strategy
 
 1. **Immediate Persistence**: Critical data saved immediately
