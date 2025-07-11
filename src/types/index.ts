@@ -17,6 +17,37 @@ export interface WorkItemMetadata {
   original_schedule?: any
   archived_from?: string
   archived_at?: string
+  similarity_metadata?: SimilarityMetadata
+  smart_references?: WorkItemReference[]
+}
+
+export interface SimilarityMetadata {
+  keywords: string[]
+  feature_domain: string
+  technical_domain: string
+  code_locations: string[]
+  strategic_theme: string
+}
+
+export interface WorkItemReference {
+  target_id: string
+  similarity_score: number
+  relationship_type: 'related' | 'continuation' | 'conflict' | 'dependency'
+  confidence: number
+  auto_generated: boolean
+}
+
+export interface SimilarityScore {
+  total_score: number
+  keyword_score: number
+  domain_score: number
+  location_score: number
+  strategic_score: number
+  content_score: number
+  common_keywords: string[]
+  domain_overlap: string[]
+  code_location_overlap: string[]
+  strategic_alignment: string
 }
 
 export interface WorkItem {

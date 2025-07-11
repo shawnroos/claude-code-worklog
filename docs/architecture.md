@@ -1,516 +1,443 @@
-# Architecture Documentation
+# Architecture
 
-Deep dive into the Claude Code Work Tracking System's architecture, design decisions, and data flow.
+This document describes the technical architecture and design decisions of Claude Work Tracker.
 
-## 🏗️ System Overview
+## System Overview
 
-The Claude Code Work Tracking System is a **local work intelligence platform** that captures, preserves, and organizes development work within your current project:
+Claude Work Tracker is a distributed system with three main components:
 
-```
-Claude Code ↔ Hook System ↔ Work Intelligence Engine ↔ MCP Server
-     ↓             ↓                    ↓                  ↓
-  Sessions    Work Capture        Data Storage      Programmatic API
-     ↓             ↓                    ↓                  ↓
-  Git Context  Intelligence      Local Project      External Tools
-              Classification        Storage
-```
-
-## 🎯 Core Components
-
-### 1. **Hook System** - Event-Driven Capture
-- **Session Hooks**: Capture session start/end events
-- **Tool Hooks**: Capture tool usage and outputs
-- **Plan Hooks**: Capture planning and decision-making
-- **Intelligence Hooks**: Extract strategic insights
-
-### 2. **Work Intelligence Engine** - Data Processing
-- **Classification**: Categorize work items by type and intent
-- **Context Enrichment**: Add git, temporal, and semantic context
-- **Cross-Reference**: Link related work across sessions
-- **Aggregation**: Summarize work patterns and insights
-
-### 3. **Storage Layer** - Local Persistence
-- **Local Session State**: Immediate work context
-- **Project State**: Cross-session work aggregation
-- **Work Intelligence**: Plans, proposals, insights
-- **Branch Context**: Git branch-specific storage
-
-### 4. **MCP Server** - Programmatic Interface
-- **Tool Endpoints**: RESTful-style work operations
-- **State Management**: Centralized work state access
-- **Integration Layer**: Bridge to external tools
-
-## 📊 Data Architecture
-
-### Data Flow Diagram
+1. **MCP Server** - Provides API access via Model Context Protocol
+2. **Work State Manager** - Handles all work item persistence and retrieval
+3. **Smart Reference Engine** - AI-powered relationship detection and suggestions
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Claude Code   │    │   Hook System   │    │ Work Intelligence│
-│                 │    │                 │    │    Engine       │
-│ • Sessions      │───▶│ • session-*.sh  │───▶│ • Classification│
-│ • Tool Usage    │    │ • tool-*.sh     │    │ • Context       │
-│ • Planning      │    │ • plan-*.sh     │    │ • Aggregation   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         │              ┌─────────────────┐              │
-         │              │  Storage Layer  │              │
-         └──────────────▶│                 │◀─────────────┘
-                        │ • Local State   │
-                        │ • Project State │
-                        │ • Global State  │
-                        │ • Intelligence  │
-                        └─────────────────┘
-                                 │
-                        ┌─────────────────┐
-                        │   MCP Server    │
-                        │                 │
-                        │ • API Endpoints │
-                        │ • State Manager │
-                        │ • Integration   │
-                        └─────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                        Claude Code                           │
+│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │ /work cmds  │  │ TodoWrite    │  │ Auto-capture     │  │
+│  └──────┬──────┘  └──────┬───────┘  └────────┬─────────┘  │
+└─────────┼────────────────┼───────────────────┼─────────────┘
+          │                │                   │
+          ▼                ▼                   ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      MCP Server                              │
+│  ┌────────────┐  ┌────────────────┐  ┌─────────────────┐   │
+│  │   Tools    │  │    Handlers    │  │   Validation    │   │
+│  │   Registry │  │  (TypeScript)  │  │   & Security    │   │
+│  └──────┬─────┘  └────────┬───────┘  └────────┬────────┘   │
+└─────────┼─────────────────┼───────────────────┼────────────┘
+          │                 │                   │
+          ▼                 ▼                   ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Work State Manager                          │
+│  ┌─────────────┐  ┌───────────────┐  ┌─────────────────┐   │
+│  │   Active    │  │   Historical  │  │     Future      │   │
+│  │   Storage   │  │    Archive    │  │   Work Queue    │   │
+│  └─────────────┘  └───────────────┘  └─────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              Smart Reference Engine                  │   │
+│  │  • Similarity Analysis  • Auto-linking              │   │
+│  │  • Conflict Detection   • Suggestions              │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Data Models
+## Core Design Principles
 
-#### **WorkItem** - Core Work Unit
-```typescript
-interface WorkItem {
-  id: string                    // Unique identifier
-  type: WorkItemType           // Classification
-  content: string              // Primary content
-  status: WorkItemStatus       // Current state
-  context: GitContext          // Git information
-  session_id: string           // Session association
-  timestamp: string            // Creation time
-  metadata?: WorkItemMetadata  // Additional data
-}
-```
+### 1. Local-First Architecture
+- Each project maintains its own `.claude-work/` directory
+- No global state pollution
+- Fast local file access
+- Git-friendly storage format
 
-#### **Work Intelligence Taxonomy**
-```typescript
-type WorkItemType = 
-  | 'todo'              // Action items
-  | 'plan'              // Structured implementations  
-  | 'proposal'          // Architectural decisions
-  | 'finding'           // Research results
-  | 'report'            // Analysis summaries
-  | 'summary'           // Session outcomes
-  | 'strategic_insight' // Key insights
-  | 'decision_rationale'// Decision reasoning
-```
+### 2. Automatic Context Preservation
+- Zero-configuration capture of work items
+- Implicit git branch association
+- Session-based organization
+- Transparent to user workflow
 
-#### **Context Enrichment**
-```typescript
-interface GitContext {
-  branch: string              // Current branch
-  worktree: string           // Worktree location
-  remote_url?: string        // Repository URL
-  working_directory: string  // Local path
-}
+### 3. Intelligent Relationship Management
+- AI-powered similarity detection
+- Multi-dimensional analysis
+- Automatic reference generation
+- Confidence-based suggestions
 
-interface SessionContext {
-  session_id: string         // Unique session
-  start_time: string        // Session start
-  duration?: number         // Session length
-  tool_usage: ToolUsage[]   // Tools used
-}
-```
+### 4. Progressive Disclosure
+- Simple commands for basic usage
+- Advanced tools available when needed
+- Contextual help and suggestions
+- Minimal cognitive overhead
 
-## 🔄 Hook System Architecture
+## Component Architecture
 
-### Hook Execution Flow
+### MCP Server (`src/index.ts`)
 
-```
-Claude Code Event → Hook Trigger → Data Capture → Intelligence Processing → Storage
-```
-
-### Hook Types and Responsibilities
-
-#### **Session Hooks**
-- **`session-init.sh`**: Session startup, context restoration
-- **`session-complete.sh`**: Session teardown, state preservation
-
-#### **Tool Hooks**
-- **`tool-complete-enhanced.sh`**: General tool capture
-- **`tool-complete-plan-capture.sh`**: Plan-specific capture
-
-#### **Intelligence Hooks**
-- **`update-work-intelligence.sh`**: Cross-session aggregation
-- **`update-global-state.sh`**: Multi-project intelligence
-
-### Hook Communication Protocol
-
-```bash
-# Input: JSON via stdin
-{
-  "sessionId": "20240111_143022_12345",
-  "toolName": "exit_plan_mode",
-  "toolInput": {"plan": "Implementation plan..."},
-  "toolOutput": "Plan created successfully",
-  "transcriptPath": "/path/to/session.jsonl",
-  "workingDirectory": "/path/to/project"
-}
-
-# Output: File system updates + log entries
-```
-
-## 🗄️ Storage Architecture
-
-### Storage Hierarchy
-
-```
-~/.claude/                          # Global configuration
-├── work-state/                     # Project state storage
-│   └── projects/                   # Per-project state
-│       └── {project}/
-│           └── ACTIVE_WORK.md      # Project overview
-├── work-intelligence/              # Intelligence capture
-│   └── {session}_{type}.json       # Individual intelligence items
-├── todos/                          # Session todos
-│   └── {session}-agent-{id}.json   # Todo snapshots
-├── findings/                       # Tool findings
-│   └── {session}_{tool}.json       # Tool outputs
-└── projects/                       # Session logs
-    └── {project}/                  # Conversation transcripts
-```
-
-### Local Project State
-
-```
-{project}/.claude-work/             # Local work state
-├── WORK_HISTORY.md                 # Chronological work log
-├── PENDING_TODOS.json              # Incomplete todos
-└── current_todos.json              # Live session backup
-```
-
-## 🎯 Claude Code Hook Integration
-
-### Overview
-The work tracking system integrates directly with Claude Code's hook events to provide automatic, transparent work preservation without requiring explicit tool calls.
-
-### Supported Hook Events
-
-#### **PreCompact Hook**
-- **Trigger**: Before context compaction (manual `/compact` or automatic when context window is full)
-- **Purpose**: Critical work preservation before context loss
-- **Actions**:
-  - Save current work state with compaction context
-  - Analyze incomplete todos and defer them to future work
-  - Ensure no work is lost during context reduction
-
-#### **Stop Hook**  
-- **Trigger**: When Claude Code agent finishes responding
-- **Purpose**: Session completion work capture
-- **Actions**:
-  - Save final session work state
-  - Capture session completion context
-  - Prepare for potential session handover
-
-#### **PostToolUse Hook**
-- **Trigger**: After any tool completes successfully
-- **Purpose**: Track significant development activity
-- **Actions**:
-  - Monitor significant tools (Edit, MultiEdit, Write, Bash, git, npm, etc.)
-  - Conditionally save work state when substantial work occurs
-  - Build tool usage intelligence
-
-### Hook Implementation Architecture
-
-```
-Claude Code Event → Hook Script → Work Client → Work Tracking Scripts → Data Storage
-```
-
-#### **Hook Scripts** (`~/.claude/hooks/`)
-- `pre-compact-hook.sh` - Context preservation before compaction
-- `stop-hook.sh` - Session completion work capture  
-- `post-tool-hook.sh` - Tool activity monitoring
-- `mcp-client.sh` - Common interface to work tracking system
-
-#### **Configuration** (`~/.claude/settings.json`)
-```json
-{
-  "hooks": {
-    "PreCompact": {
-      "Bash": "~/.claude/hooks/pre-compact-hook.sh"
-    },
-    "Stop": {
-      "Bash": "~/.claude/hooks/stop-hook.sh"
-    },
-    "PostToolUse": {
-      "Bash": "~/.claude/hooks/post-tool-hook.sh \"$TOOL_NAME\" \"$TOOL_INPUT\" \"$TOOL_RESPONSE\""
-    }
-  }
-}
-```
-
-### Benefits
-
-- **Zero-friction work preservation** - Never lose work during compaction
-- **Automatic session continuity** - Work state preserved across sessions without explicit commands
-- **Intelligent work capture** - Context-aware saving based on actual development activity
-- **Transparent operation** - Works behind the scenes without interrupting workflow
-
-### Data Persistence Strategy
-
-1. **Immediate Persistence**: Critical data saved immediately
-2. **Batch Updates**: Non-critical data aggregated periodically
-3. **Incremental Backups**: State changes tracked incrementally
-4. **Cross-Session Linking**: Related work linked across sessions
-
-## 🧠 Work Intelligence Engine
-
-### Intelligence Classification
-
-```typescript
-class WorkIntelligenceClassifier {
-  classify(content: string, context: CaptureContext): WorkItemType {
-    // Pattern matching for different intelligence types
-    if (containsPlanPatterns(content)) return 'plan'
-    if (containsProposalPatterns(content)) return 'proposal'
-    if (containsInsightPatterns(content)) return 'strategic_insight'
-    if (containsDecisionPatterns(content)) return 'decision_rationale'
-    // ... more classification logic
-  }
-}
-```
-
-### Pattern Recognition
-
-#### **Plan Detection**
-- Numbered lists (1., 2., 3.)
-- Step indicators ("Step 1", "Phase 1")
-- Implementation language ("implement", "create", "build")
-- Structured content from `exit_plan_mode`
-
-#### **Proposal Detection**  
-- Recommendation language ("I recommend", "I suggest")
-- Architectural terms ("architecture", "design", "approach")
-- Decision indicators ("decision", "choice", "option")
-- Rationale patterns ("because", "rationale", "reason")
-
-#### **Insight Detection**
-- Analysis language ("analysis", "insight", "finding")
-- Strategic terms ("strategy", "approach", "pattern")
-- Research indicators ("research", "investigation", "study")
-
-### Context Enrichment Process
-
-```typescript
-interface ContextEnrichment {
-  temporal: {
-    timestamp: string
-    session_duration: number
-    related_sessions: string[]
-  }
-  spatial: {
-    git_context: GitContext
-    file_relationships: string[]
-    project_context: ProjectContext
-  }
-  semantic: {
-    related_work: WorkItem[]
-    keyword_tags: string[]
-    topic_clusters: string[]
-  }
-}
-```
-
-## 🌐 MCP Server Architecture
-
-### Server Components
+The entry point that implements the Model Context Protocol:
 
 ```typescript
 class WorkTrackingMCPServer {
-  private server: MCPServer
-  private workStateManager: WorkStateManager
-  private toolRegistry: ToolRegistry
+  private server: Server
+  private workTrackingTools: WorkTrackingTools
   
-  // Core server lifecycle
-  async initialize() { /* ... */ }
-  async handleRequest() { /* ... */ }
-  async shutdown() { /* ... */ }
+  // Handles tool discovery
+  ListToolsRequestSchema → Available tools
+  
+  // Handles tool execution
+  CallToolRequestSchema → Tool results
 }
 ```
 
-### Tool Architecture
+**Responsibilities:**
+- Protocol compliance
+- Request routing
+- Error handling
+- Response formatting
+
+### Work Tracking Tools (`src/tools/index.ts`)
+
+Tool registry and handler implementation:
 
 ```typescript
-interface MCPTool {
-  name: string
-  description: string
-  inputSchema: JSONSchema
-  handler: (params: any) => Promise<McpToolResponse>
-}
-
-class ToolRegistry {
-  private tools: Map<string, MCPTool>
+class WorkTrackingTools {
+  private workStateManager: WorkStateManager
   
-  register(tool: MCPTool) { /* ... */ }
-  execute(name: string, params: any) { /* ... */ }
+  getTools(): Tool[]          // Tool definitions
+  handleToolCall(): Response  // Tool execution
 }
 ```
 
-### State Management
+**Tool Categories:**
+1. Core work management
+2. Smart references
+3. Historical context
+4. Future work management
+5. Visualization
+
+### Work State Manager (`src/services/WorkStateManager.ts`)
+
+Central state management and persistence:
 
 ```typescript
 class WorkStateManager {
-  // Data access layer
-  getCurrentWorkState(): WorkState
+  // Storage paths
+  private localWorkDir = '.claude-work/'
+  private activeDir = '.claude-work/active/'
+  private historyDir = '.claude-work/history/'
+  private futureDir = '.claude-work/future/'
+  
+  // Core operations
   saveWorkItem(item: WorkItem): void
-  searchWorkItems(query: string): WorkItem[]
+  loadActiveTodos(): WorkItem[]
+  queryHistory(keyword: string): WorkItem[]
   
-  // Intelligence operations
-  savePlan(content: string, steps: string[]): WorkItem
-  saveProposal(content: string, rationale: string): WorkItem
-  
-  // Cross-worktree operations
-  getCrossWorktreeConflicts(): string[]
-  aggregateGlobalState(): void
+  // Smart features
+  getContextualSuggestions(): Suggestion[]
+  generateSmartReferences(itemId: string): Reference[]
 }
 ```
 
-## 🔀 Branch-Based Intelligence
+**Key Features:**
+- Two-tier storage (active/historical)
+- Automatic metadata extraction
+- Git context awareness
+- Future work management
 
-### Branch Context Management
+### Smart Reference Engine (`src/services/SmartReferenceEngine.ts`)
+
+AI-powered relationship detection:
 
 ```typescript
-interface BranchContext {
-  current_branch: string        // Active git branch
-  branch_type: 'main' | 'feature' | 'hotfix' | 'bugfix'
-  base_branch: string          // Parent branch
-  work_items: WorkItem[]       // Branch-specific work
+class SmartReferenceEngine {
+  // Core analysis
+  calculateSemanticSimilarity(item1, item2): SimilarityScore
+  generateAutomaticReferences(item): SmartReference[]
+  
+  // Contextual intelligence
+  getContextualSuggestions(activeItems): Suggestion[]
+  updateReferencesOnChange(itemId): void
 }
 ```
 
-### Branch Switching
+**Similarity Dimensions:**
+1. **Keyword Analysis** (30% weight)
+   - Common term extraction
+   - Stop word filtering
+   - Frequency analysis
+
+2. **Domain Alignment** (25% weight)
+   - Feature domain matching
+   - Technical domain correlation
+   - Business area clustering
+
+3. **Code Location** (20% weight)
+   - File path analysis
+   - Module detection
+   - Component grouping
+
+4. **Strategic Theme** (15% weight)
+   - High-level goal alignment
+   - Business value correlation
+   - Initiative grouping
+
+5. **Content Similarity** (10% weight)
+   - Text comparison
+   - Semantic overlap
+   - Pattern matching
+
+### Reference Mapper (`src/services/ReferenceMapper.ts`)
+
+Visual relationship mapping:
 
 ```typescript
-class BranchManager {
-  switchContext(newBranch: string): void {
-    // 1. Save current branch work state
-    this.saveCurrentBranchState()
-    
-    // 2. Load new branch work state
-    const branchState = this.loadBranchState(newBranch)
-    
-    // 3. Restore work context
-    this.restoreWorkContext(branchState)
+class ReferenceMapper {
+  generateReferenceMap(): ReferenceMap
+  generateFocusedMap(itemId, depth): ReferenceMap
+  findReferencePath(source, target): string[]
+  generateASCIIVisualization(map): string
+}
+```
+
+**Visualization Features:**
+- Graph-based representation
+- Cluster detection
+- Path finding
+- ASCII output for terminal
+
+## Data Storage
+
+### Directory Structure
+
+```
+project/
+└── .claude-work/
+    ├── active/
+    │   ├── current-work-context.json
+    │   └── {timestamp}_{id}.json
+    ├── history/
+    │   └── {date}-{type}-{id}.json
+    ├── future/
+    │   ├── items/
+    │   │   └── item-{id}.json
+    │   ├── groups/
+    │   │   └── {group-name}.json
+    │   └── suggestions.json
+    └── PENDING_TODOS.json
+```
+
+### File Formats
+
+**Work Item:**
+```json
+{
+  "id": "1234567890_abc123def",
+  "type": "todo",
+  "content": "Implement user authentication",
+  "status": "in_progress",
+  "context": {
+    "branch": "feature-auth",
+    "worktree": "main",
+    "working_directory": "/path/to/project"
+  },
+  "session_id": "2025-07-11-auth-work",
+  "timestamp": "2025-07-11T10:30:00Z",
+  "metadata": {
+    "priority": "high",
+    "similarity_metadata": {
+      "keywords": ["auth", "user", "login"],
+      "feature_domain": "user-management",
+      "technical_domain": "backend-api",
+      "code_locations": ["src/auth/"],
+      "strategic_theme": "security"
+    },
+    "smart_references": [{
+      "target_id": "plan-auth-design",
+      "similarity_score": 0.92,
+      "relationship_type": "continuation",
+      "confidence": 0.88,
+      "auto_generated": true
+    }]
   }
 }
 ```
 
-### Local State Organization
-
-```typescript
-interface LocalState {
-  project: ProjectState
-  current_branch: BranchContext
-  work_history: WorkItem[]
-  intelligence: WorkIntelligence[]
+**Future Work Group:**
+```json
+{
+  "id": "group-123",
+  "name": "authentication-enhancements",
+  "description": "Advanced auth features for phase 2",
+  "items": ["item-456", "item-789"],
+  "similarity_score": 0.85,
+  "strategic_value": "high",
+  "estimated_effort": "medium",
+  "readiness_status": "blocked",
+  "created_date": "2025-07-11T12:00:00Z",
+  "last_updated": "2025-07-11T14:30:00Z"
 }
 ```
 
-## 🔧 Integration Architecture
+## Algorithms
+
+### Similarity Calculation
+
+```typescript
+function calculateSemanticSimilarity(item1, item2) {
+  // Extract metadata
+  const meta1 = extractMetadata(item1)
+  const meta2 = extractMetadata(item2)
+  
+  // Calculate dimension scores
+  const keywordScore = calculateKeywordOverlap(meta1, meta2)
+  const domainScore = calculateDomainAlignment(meta1, meta2)
+  const locationScore = calculateLocationSimilarity(meta1, meta2)
+  const strategicScore = calculateStrategicAlignment(meta1, meta2)
+  const contentScore = calculateContentSimilarity(item1, item2)
+  
+  // Weighted combination
+  return {
+    total_score: (
+      keywordScore * 0.30 +
+      domainScore * 0.25 +
+      locationScore * 0.20 +
+      strategicScore * 0.15 +
+      contentScore * 0.10
+    ),
+    // Individual scores for transparency
+    keyword_score: keywordScore,
+    domain_score: domainScore,
+    location_score: locationScore,
+    strategic_score: strategicScore,
+    content_score: contentScore
+  }
+}
+```
+
+### Relationship Type Detection
+
+```typescript
+function determineRelationshipType(item1, item2, similarity) {
+  const content1 = item1.content.toLowerCase()
+  const content2 = item2.content.toLowerCase()
+  
+  // Pattern matching for relationship types
+  if (hasContinuationPattern(content1, content2)) {
+    return 'continuation'
+  }
+  
+  if (hasConflictPattern(content1, content2)) {
+    return 'conflict'
+  }
+  
+  if (hasDependencyPattern(content1, content2)) {
+    return 'dependency'
+  }
+  
+  return 'related'
+}
+```
+
+### Confidence Calculation
+
+```typescript
+function calculateConfidence(similarity) {
+  let confidence = similarity.total_score
+  
+  // Boost for multi-dimensional alignment
+  const alignedDimensions = countAlignedDimensions(similarity)
+  confidence += alignedDimensions * 0.1
+  
+  // Penalty for weak individual scores
+  if (similarity.keyword_score < 0.2) confidence *= 0.8
+  if (similarity.domain_score === 0) confidence *= 0.9
+  
+  return Math.min(confidence, 1.0)
+}
+```
+
+## Performance Considerations
+
+### Optimization Strategies
+
+1. **Lazy Loading**
+   - Historical items loaded on demand
+   - Metadata cached in memory
+   - References generated once per session
+
+2. **Efficient Search**
+   - Keyword indexing for fast lookup
+   - Date-based partitioning
+   - Type-filtered queries
+
+3. **Bounded Operations**
+   - Similarity calculations limited to top N items
+   - Reference depth configurable
+   - Visualization size constraints
+
+### Scalability
+
+- **Storage**: Linear with work items
+- **Search**: O(n) with optimization for recent items
+- **Similarity**: O(n²) worst case, O(n) with heuristics
+- **Memory**: Bounded by active context size
+
+## Security Considerations
+
+### Data Protection
+- All data stored locally
+- No network transmission
+- Git-ignored storage directory
+- User-controlled persistence
+
+### Input Validation
+- JSON schema validation
+- Path traversal prevention
+- Command injection protection
+- Size limits on inputs
+
+### Error Handling
+- Graceful degradation
+- Non-blocking failures
+- Detailed error messages
+- Recovery mechanisms
+
+## Integration Points
 
 ### Claude Code Integration
+- MCP server configuration
+- Slash command handling
+- TodoWrite tool integration
+- Automatic work capture
 
-```typescript
-interface ClaudeCodeIntegration {
-  hooks: {
-    session_start: HookHandler
-    session_complete: HookHandler
-    tool_complete: HookHandler
-  }
-  commands: {
-    work: CommandHandler
-  }
-  configuration: {
-    settings: ClaudeSettings
-    permissions: PermissionSet
-  }
-}
-```
+### Git Integration
+- Branch detection
+- Worktree support
+- Commit association
+- Repository awareness
 
-### External Tool Integration
+### File System Integration
+- Cross-platform paths
+- Permission handling
+- Atomic writes
+- Directory watching
 
-```typescript
-interface ExternalIntegration {
-  mcp_server: MCPServerEndpoint
-  bash_scripts: BashScriptSet
-  file_system: FileSystemAdapter
-  git_integration: GitAdapter
-}
-```
-
-## 📈 Performance Considerations
-
-### Scalability Design
-
-1. **Incremental Processing**: Only process changes, not full state
-2. **Lazy Loading**: Load data on-demand
-3. **Caching Strategy**: Cache frequently accessed data
-4. **Background Processing**: Non-critical operations run async
-
-### Memory Management
-
-```typescript
-class MemoryManager {
-  private cache: LRUCache<string, WorkItem>
-  private maxCacheSize: number = 1000
-  
-  // Efficient data access patterns
-  getWorkItem(id: string): WorkItem | null
-  evictOldItems(): void
-  optimizeMemoryUsage(): void
-}
-```
-
-### File System Optimization
-
-- **Structured Directories**: Logical organization for fast access
-- **JSON Streaming**: Large datasets processed incrementally
-- **Compression**: Historical data compressed for space efficiency
-- **Indexing**: Quick lookup indices for common queries
-
-## 🛡️ Security Architecture
-
-### Data Privacy
-
-1. **Local Storage**: All data stays on user's machine
-2. **No Network Transmission**: No data sent to external services
-3. **Access Control**: File permissions restrict access
-4. **Audit Trails**: All operations logged for transparency
-
-### Secure Defaults
-
-```typescript
-interface SecuritySettings {
-  file_permissions: '644' | '755'
-  directory_permissions: '755'
-  sensitive_data_handling: 'encrypt' | 'exclude'
-  log_retention: number // days
-}
-```
-
-## 🔮 Future Architecture Considerations
+## Future Architecture Considerations
 
 ### Planned Enhancements
+1. **Semantic Embeddings**: Vector-based similarity
+2. **Graph Database**: Neo4j for complex relationships
+3. **Real-time Sync**: Multi-device support
+4. **Plugin System**: Extensible tool architecture
 
-1. **Distributed Intelligence**: Multi-machine synchronization
-2. **Advanced Analytics**: Machine learning for pattern recognition
-3. **Integration Ecosystem**: Plugin architecture for extensions
-4. **Real-time Collaboration**: Team-based work intelligence
+### Performance Improvements
+1. **Incremental Indexing**: Background processing
+2. **Caching Layer**: Redis for frequent queries
+3. **Parallel Processing**: Worker threads
+4. **Compression**: Storage optimization
 
-### Extensibility Design
+### Scalability Path
+1. **Sharding**: By project/date
+2. **Federation**: Cross-project queries
+3. **Cloud Sync**: Optional backup
+4. **API Gateway**: Rate limiting
 
-```typescript
-interface ExtensionAPI {
-  registerHook(event: string, handler: HookHandler): void
-  registerTool(tool: MCPTool): void
-  registerClassifier(classifier: IntelligenceClassifier): void
-  registerStorage(adapter: StorageAdapter): void
-}
-```
-
-This architecture provides a robust, scalable foundation for comprehensive work intelligence capture and management while maintaining performance and security.
+The architecture is designed to be simple, fast, and extensible while maintaining the core principle of enhancing Claude's memory without adding complexity to the user's workflow.

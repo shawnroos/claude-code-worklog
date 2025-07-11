@@ -21,5 +21,13 @@ export declare class WorkTrackingTools {
     private handleGroomFutureWork;
     private handleCreateWorkGroup;
     private handlePromoteWorkGroup;
+    private handleGetContextualSuggestions;
+    private handleGenerateSmartReferences;
+    private handleCalculateSimilarity;
+    private handleGetEnhancedWorkState;
+    private handleGenerateReferenceMap;
+    private handleGenerateFocusedReferenceMap;
+    private handleFindReferencePath;
+    private handleVisualizeReferences;
 }
 //# sourceMappingURL=index.d.ts.map

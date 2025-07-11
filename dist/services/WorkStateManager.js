@@ -4,6 +4,8 @@ exports.WorkStateManager = void 0;
 const fs_1 = require("fs");
 const path_1 = require("path");
 const child_process_1 = require("child_process");
+const SmartReferenceEngine_1 = require("./SmartReferenceEngine");
+const ReferenceMapper_1 = require("./ReferenceMapper");
 class WorkStateManager {
     baseDir = (0, path_1.join)(process.env.HOME || '', '.claude');
     todosDir = (0, path_1.join)(this.baseDir, 'todos');
@@ -17,8 +19,12 @@ class WorkStateManager {
     futureItemsDir = (0, path_1.join)(this.futureDir, 'items');
     futureGroupsDir = (0, path_1.join)(this.futureDir, 'groups');
     futureSuggestionsFile = (0, path_1.join)(this.futureDir, 'suggestions.json');
+    smartReferenceEngine;
+    referenceMapper;
     constructor() {
         this.ensureDirectories();
+        this.smartReferenceEngine = new SmartReferenceEngine_1.SmartReferenceEngine(this);
+        this.referenceMapper = new ReferenceMapper_1.ReferenceMapper(this);
     }
     ensureDirectories() {
         [this.baseDir, this.todosDir, this.findingsDir, this.workStateDir, this.projectsDir, this.localWorkDir, this.historyDir, this.activeDir, this.futureDir, this.futureItemsDir, this.futureGroupsDir].forEach(dir => {
@@ -181,8 +187,28 @@ class WorkStateManager {
         };
     }
     saveWorkItem(workItem) {
+        // Ensure similarity metadata is extracted
+        if (!workItem.metadata?.similarity_metadata) {
+            if (!workItem.metadata) {
+                workItem.metadata = {};
+            }
+            workItem.metadata.similarity_metadata = this.extractSimilarityMetadata(workItem.content);
+        }
+        // Generate smart references
+        const smartReferences = this.smartReferenceEngine.generateAutomaticReferences(workItem);
+        if (smartReferences.length > 0) {
+            workItem.metadata.smart_references = smartReferences.map(ref => ({
+                target_id: ref.target_item_id,
+                similarity_score: ref.similarity_score,
+                relationship_type: ref.relationship_type,
+                confidence: ref.confidence,
+                auto_generated: ref.auto_generated
+            }));
+        }
         const filePath = (0, path_1.join)(this.todosDir, `${workItem.id}.json`);
         this.writeJsonFile(filePath, workItem);
+        // Update references in other items if needed
+        this.smartReferenceEngine.updateReferencesOnChange(workItem.id);
     }
     saveFinding(finding) {
         const filePath = (0, path_1.join)(this.findingsDir, `${finding.id}.json`);
@@ -601,7 +627,7 @@ class WorkStateManager {
         }
     }
     extractSimilarityMetadata(content) {
-        // Simple similarity metadata extraction based on content analysis
+        // Enhanced similarity metadata extraction based on content analysis
         const keywords = this.extractKeywords(content);
         const featureDomain = this.inferFeatureDomain(content, keywords);
         const technicalDomain = this.inferTechnicalDomain(content, keywords);
@@ -884,6 +910,99 @@ class WorkStateManager {
             const fs = require('fs');
             fs.unlinkSync(filePath);
         }
+    }
+    // Smart Referencing Methods
+    /**
+     * Get contextual suggestions for current active work
+     */
+    getContextualSuggestions() {
+        const activeItems = this.loadActiveTodos();
+        return this.smartReferenceEngine.getContextualSuggestions(activeItems);
+    }
+    /**
+     * Generate smart references for a specific work item
+     */
+    generateSmartReferences(itemId) {
+        const activeItems = this.loadActiveTodos();
+        const item = activeItems.find(i => i.id === itemId);
+        if (!item) {
+            // Try to find in historical items
+            const historicalItem = this.getHistoricalItem(itemId);
+            if (historicalItem) {
+                return this.smartReferenceEngine.generateAutomaticReferences(historicalItem);
+            }
+            return [];
+        }
+        return this.smartReferenceEngine.generateAutomaticReferences(item);
+    }
+    /**
+     * Calculate similarity between two work items
+     */
+    calculateSimilarity(itemId1, itemId2) {
+        const item1 = this.findWorkItem(itemId1);
+        const item2 = this.findWorkItem(itemId2);
+        if (!item1 || !item2) {
+            return null;
+        }
+        return this.smartReferenceEngine.calculateSemanticSimilarity(item1, item2);
+    }
+    /**
+     * Get enhanced work state with smart referencing context
+     */
+    getEnhancedWorkState() {
+        const baseWorkState = this.getCurrentWorkState();
+        const suggestions = this.getContextualSuggestions();
+        return {
+            ...baseWorkState,
+            smart_suggestions: suggestions,
+            reference_summary: {
+                total_suggestions: suggestions.length,
+                high_priority: suggestions.filter(s => s.priority === 'high').length,
+                suggestion_types: this.groupSuggestionsByType(suggestions)
+            }
+        };
+    }
+    findWorkItem(itemId) {
+        // First try active items
+        const activeItems = this.loadActiveTodos();
+        const activeItem = activeItems.find(i => i.id === itemId);
+        if (activeItem)
+            return activeItem;
+        // Then try historical items
+        return this.getHistoricalItem(itemId);
+    }
+    groupSuggestionsByType(suggestions) {
+        const grouped = {};
+        for (const suggestion of suggestions) {
+            grouped[suggestion.type] = (grouped[suggestion.type] || 0) + 1;
+        }
+        return grouped;
+    }
+    // Reference Mapping Methods
+    /**
+     * Generate complete reference map for current work context
+     */
+    generateReferenceMap() {
+        return this.referenceMapper.generateReferenceMap();
+    }
+    /**
+     * Generate focused reference map for a specific work item
+     */
+    generateFocusedReferenceMap(itemId, depth = 2) {
+        return this.referenceMapper.generateFocusedMap(itemId, depth);
+    }
+    /**
+     * Find reference path between two work items
+     */
+    findReferencePath(sourceId, targetId) {
+        return this.referenceMapper.findReferencePath(sourceId, targetId);
+    }
+    /**
+     * Generate ASCII visualization of reference relationships
+     */
+    visualizeReferences() {
+        const referenceMap = this.generateReferenceMap();
+        return this.referenceMapper.generateASCIIVisualization(referenceMap);
     }
 }
 exports.WorkStateManager = WorkStateManager;

@@ -277,6 +277,112 @@ class WorkTrackingTools {
                     },
                     required: ['group_name']
                 }
+            },
+            {
+                name: 'get_contextual_suggestions',
+                description: 'Get smart suggestions for current active work based on historical context',
+                inputSchema: {
+                    type: 'object',
+                    properties: {},
+                    required: []
+                }
+            },
+            {
+                name: 'generate_smart_references',
+                description: 'Generate automatic references for a specific work item',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        item_id: {
+                            type: 'string',
+                            description: 'Work item ID to generate references for'
+                        }
+                    },
+                    required: ['item_id']
+                }
+            },
+            {
+                name: 'calculate_similarity',
+                description: 'Calculate similarity score between two work items',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        item_id_1: {
+                            type: 'string',
+                            description: 'First work item ID'
+                        },
+                        item_id_2: {
+                            type: 'string',
+                            description: 'Second work item ID'
+                        }
+                    },
+                    required: ['item_id_1', 'item_id_2']
+                }
+            },
+            {
+                name: 'get_enhanced_work_state',
+                description: 'Get work state enhanced with smart referencing context and suggestions',
+                inputSchema: {
+                    type: 'object',
+                    properties: {},
+                    required: []
+                }
+            },
+            {
+                name: 'generate_reference_map',
+                description: 'Generate visual reference map showing relationships between work items',
+                inputSchema: {
+                    type: 'object',
+                    properties: {},
+                    required: []
+                }
+            },
+            {
+                name: 'generate_focused_reference_map',
+                description: 'Generate focused reference map for a specific work item',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        item_id: {
+                            type: 'string',
+                            description: 'Work item ID to focus on'
+                        },
+                        depth: {
+                            type: 'number',
+                            description: 'Depth of reference traversal (default: 2)',
+                            minimum: 1,
+                            maximum: 5
+                        }
+                    },
+                    required: ['item_id']
+                }
+            },
+            {
+                name: 'find_reference_path',
+                description: 'Find reference path between two work items',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        source_id: {
+                            type: 'string',
+                            description: 'Source work item ID'
+                        },
+                        target_id: {
+                            type: 'string',
+                            description: 'Target work item ID'
+                        }
+                    },
+                    required: ['source_id', 'target_id']
+                }
+            },
+            {
+                name: 'visualize_references',
+                description: 'Generate ASCII visualization of work item references',
+                inputSchema: {
+                    type: 'object',
+                    properties: {},
+                    required: []
+                }
             }
         ];
     }
@@ -317,6 +423,22 @@ class WorkTrackingTools {
                     return this.handleCreateWorkGroup(params);
                 case 'promote_work_group':
                     return this.handlePromoteWorkGroup(params);
+                case 'get_contextual_suggestions':
+                    return this.handleGetContextualSuggestions(params);
+                case 'generate_smart_references':
+                    return this.handleGenerateSmartReferences(params);
+                case 'calculate_similarity':
+                    return this.handleCalculateSimilarity(params);
+                case 'get_enhanced_work_state':
+                    return this.handleGetEnhancedWorkState(params);
+                case 'generate_reference_map':
+                    return this.handleGenerateReferenceMap(params);
+                case 'generate_focused_reference_map':
+                    return this.handleGenerateFocusedReferenceMap(params);
+                case 'find_reference_path':
+                    return this.handleFindReferencePath(params);
+                case 'visualize_references':
+                    return this.handleVisualizeReferences(params);
                 default:
                     return {
                         success: false,
@@ -455,10 +577,24 @@ class WorkTrackingTools {
         const { keyword, start_date, end_date, type } = params;
         try {
             const historyResults = this.workStateManager.queryHistory(keyword, start_date, end_date, type);
+            // Enhance results with contextual relevance if there are active items
+            const enhancedResults = historyResults.map(item => {
+                const contextualSuggestions = this.workStateManager.getContextualSuggestions();
+                const relevantSuggestion = contextualSuggestions.find(s => s.target_item_id === item.id);
+                return {
+                    ...item,
+                    contextual_relevance: relevantSuggestion ? {
+                        confidence: relevantSuggestion.confidence,
+                        relationship_type: relevantSuggestion.type,
+                        priority: relevantSuggestion.priority,
+                        action_hint: relevantSuggestion.action_hint
+                    } : null
+                };
+            });
             return {
                 success: true,
-                data: historyResults,
-                message: `Found ${historyResults.length} historical items matching "${keyword}"`
+                data: enhancedResults,
+                message: `Found ${historyResults.length} historical items matching "${keyword}"${enhancedResults.some(r => r.contextual_relevance) ? ' (enhanced with contextual relevance)' : ''}`
             };
         }
         catch (error) {
@@ -664,6 +800,168 @@ class WorkTrackingTools {
             return {
                 success: false,
                 error: `Error promoting work group: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleGetContextualSuggestions(params) {
+        try {
+            const suggestions = this.workStateManager.getContextualSuggestions();
+            return {
+                success: true,
+                data: suggestions,
+                message: `Found ${suggestions.length} contextual suggestions based on current active work`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error getting contextual suggestions: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleGenerateSmartReferences(params) {
+        const { item_id } = params;
+        if (!item_id) {
+            return {
+                success: false,
+                error: 'Missing required parameter: item_id'
+            };
+        }
+        try {
+            const references = this.workStateManager.generateSmartReferences(item_id);
+            return {
+                success: true,
+                data: references,
+                message: `Generated ${references.length} smart references for item ${item_id}`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error generating smart references: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleCalculateSimilarity(params) {
+        const { item_id_1, item_id_2 } = params;
+        if (!item_id_1 || !item_id_2) {
+            return {
+                success: false,
+                error: 'Missing required parameters: item_id_1 and item_id_2'
+            };
+        }
+        try {
+            const similarity = this.workStateManager.calculateSimilarity(item_id_1, item_id_2);
+            if (!similarity) {
+                return {
+                    success: false,
+                    error: 'One or both work items not found'
+                };
+            }
+            return {
+                success: true,
+                data: similarity,
+                message: `Calculated similarity score: ${similarity.total_score.toFixed(3)}`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error calculating similarity: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleGetEnhancedWorkState(params) {
+        try {
+            const enhancedState = this.workStateManager.getEnhancedWorkState();
+            return {
+                success: true,
+                data: enhancedState,
+                message: `Enhanced work state with ${enhancedState.smart_suggestions?.length || 0} smart suggestions`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error getting enhanced work state: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleGenerateReferenceMap(params) {
+        try {
+            const referenceMap = this.workStateManager.generateReferenceMap();
+            return {
+                success: true,
+                data: referenceMap,
+                message: `Generated reference map with ${referenceMap.summary.total_items} items and ${referenceMap.summary.total_references} references`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error generating reference map: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleGenerateFocusedReferenceMap(params) {
+        const { item_id, depth = 2 } = params;
+        if (!item_id) {
+            return {
+                success: false,
+                error: 'Missing required parameter: item_id'
+            };
+        }
+        try {
+            const referenceMap = this.workStateManager.generateFocusedReferenceMap(item_id, depth);
+            return {
+                success: true,
+                data: referenceMap,
+                message: `Generated focused reference map for ${item_id} with depth ${depth}`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error generating focused reference map: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleFindReferencePath(params) {
+        const { source_id, target_id } = params;
+        if (!source_id || !target_id) {
+            return {
+                success: false,
+                error: 'Missing required parameters: source_id and target_id'
+            };
+        }
+        try {
+            const path = this.workStateManager.findReferencePath(source_id, target_id);
+            return {
+                success: true,
+                data: { path: path },
+                message: path.length > 0 ? `Found reference path with ${path.length} steps` : 'No reference path found'
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error finding reference path: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleVisualizeReferences(params) {
+        try {
+            const visualization = this.workStateManager.visualizeReferences();
+            return {
+                success: true,
+                data: { visualization: visualization },
+                message: 'Generated ASCII visualization of work item references'
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error generating visualization: ${error instanceof Error ? error.message : String(error)}`
             };
         }
     }

@@ -1,274 +1,509 @@
 # API Reference
 
-Complete reference for the Claude Work Tracker MCP server tools and endpoints.
+Complete reference for all MCP tools and endpoints available in Claude Work Tracker.
 
-## 🛠️ MCP Server Overview
+## Table of Contents
 
-The Claude Work Tracker MCP server provides programmatic access to all work tracking functionality through the Model Context Protocol. It exposes 7 tools for comprehensive local work state management.
+1. [Core Work Management](#core-work-management)
+2. [Smart References](#smart-references)
+3. [Historical Context](#historical-context)
+4. [Future Work Management](#future-work-management)
+5. [Visualization Tools](#visualization-tools)
+6. [Data Types](#data-types)
 
-### Server Information
-- **Name**: `claude-work-tracker`
-- **Version**: `1.0.0`
-- **Protocol**: Model Context Protocol (MCP)
-- **Transport**: stdio
-- **Focus**: Local project work tracking
+## Core Work Management
 
-## 🔧 Tools
+### get_work_state
 
-### `get_work_state`
+Retrieves the current work state including todos, findings, and session summary.
 
-Get current work state including active todos, recent findings, and session summary.
-
-**Parameters:** None
-
-**Returns:**
 ```typescript
+get_work_state(): WorkState
+
+// Returns
 {
-  current_session: string
-  active_todos: WorkItem[]
-  recent_findings: Finding[]
-  session_summary: SessionSummary
+  current_session: string,
+  active_todos: WorkItem[],
+  recent_findings: Finding[],
+  session_summary: SessionSummary,
+  smart_suggestions?: ContextualSuggestion[]  // When enhanced
 }
+
+// Example
+const state = await get_work_state()
+console.log(`${state.active_todos.length} active todos`)
 ```
 
-**Example Usage:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "get_work_state",
-    "arguments": {}
-  }
-}
-```
+### save_plan
 
-**Response:**
-```json
-{
-  "content": [{
-    "type": "text",
-    "text": "{\n  \"current_session\": \"20240111_143022_12345\",\n  \"active_todos\": [...],\n  \"recent_findings\": [...],\n  \"session_summary\": {...}\n}"
-  }]
-}
-```
+Saves a structured plan with steps for future reference.
 
----
-
-### `save_plan`
-
-Save a structured plan with implementation steps for future reference.
-
-**Parameters:**
-- `content` (string, required): The main plan description
-- `steps` (array of strings, required): List of implementation steps
-
-**Returns:**
 ```typescript
+save_plan(
+  content: string,      // Plan description
+  steps: string[]       // Array of plan steps
+): WorkItem
+
+// Example
+await save_plan(
+  "Implement user authentication system",
+  [
+    "Create login component",
+    "Add form validation", 
+    "Integrate with backend API",
+    "Add session management",
+    "Implement logout functionality"
+  ]
+)
+```
+
+### save_proposal
+
+Saves an architectural decision or proposal with rationale.
+
+```typescript
+save_proposal(
+  content: string,      // Proposal description
+  rationale: string     // Reasoning behind the proposal
+): WorkItem
+
+// Example
+await save_proposal(
+  "Use JWT tokens for authentication",
+  "JWTs are stateless, scalable, and work well with our microservices architecture"
+)
+```
+
+### search_work_items
+
+Search through all work items with optional type filtering.
+
+```typescript
+search_work_items(
+  query: string,        // Search query
+  type?: WorkItemType   // Optional: 'todo' | 'plan' | 'proposal' | 'finding'
+): WorkItem[]
+
+// Example
+const authWork = await search_work_items("authentication", "plan")
+```
+
+## Smart References
+
+### get_contextual_suggestions
+
+Get AI-powered suggestions based on current active work.
+
+```typescript
+get_contextual_suggestions(): ContextualSuggestion[]
+
+// Returns array of
 {
-  id: string
-  type: "plan"
-  content: string
-  status: "pending"
-  context: GitContext
-  session_id: string
-  timestamp: string
+  type: 'promote_historical' | 'review_conflict' | 'reference_decision' | 'continue_work',
+  priority: 'high' | 'medium' | 'low',
+  message: string,
+  target_item_id: string,
+  confidence: number,
+  action_hint?: string
+}
+
+// Example
+const suggestions = await get_contextual_suggestions()
+for (const s of suggestions.filter(s => s.priority === 'high')) {
+  console.log(`⚡ ${s.message}`)
+}
+```
+
+### generate_smart_references
+
+Generate automatic references for a specific work item.
+
+```typescript
+generate_smart_references(
+  item_id: string       // Work item ID
+): SmartReference[]
+
+// Returns array of
+{
+  target_item_id: string,
+  similarity_score: number,
+  relationship_type: 'related' | 'continuation' | 'conflict' | 'dependency',
+  confidence: number,
   metadata: {
-    plan_steps: string[]
-    priority: "high"
+    common_keywords: string[],
+    domain_overlap: string[],
+    code_location_overlap: string[],
+    strategic_alignment: string
   }
 }
+
+// Example
+const refs = await generate_smart_references("todo-123")
+console.log(`Found ${refs.length} related items`)
 ```
 
-**Example Usage:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "save_plan",
-    "arguments": {
-      "content": "Implement user authentication system",
-      "steps": [
-        "Set up JWT token generation",
-        "Create login/logout endpoints",
-        "Add middleware for protected routes",
-        "Implement user session management"
-      ]
-    }
-  }
-}
-```
+### calculate_similarity
 
----
+Calculate semantic similarity between two work items.
 
-### `save_proposal`
-
-Save a proposal or architectural decision with rationale.
-
-**Parameters:**
-- `content` (string, required): The proposal description
-- `rationale` (string, required): The reasoning behind the proposal
-
-**Returns:**
 ```typescript
+calculate_similarity(
+  item_id_1: string,    // First work item
+  item_id_2: string     // Second work item
+): SimilarityScore
+
+// Returns
 {
-  id: string
-  type: "proposal"
-  content: string
-  status: "pending"
-  context: GitContext
-  session_id: string
-  timestamp: string
-  metadata: {
-    decision_rationale: string
-    priority: "high"
-  }
+  total_score: number,         // 0-1 overall similarity
+  keyword_score: number,       // Keyword overlap
+  domain_score: number,        // Domain alignment
+  location_score: number,      // Code location similarity
+  strategic_score: number,     // Strategic theme alignment
+  content_score: number,       // Content similarity
+  common_keywords: string[],
+  domain_overlap: string[],
+  code_location_overlap: string[],
+  strategic_alignment: string
+}
+
+// Example
+const similarity = await calculate_similarity("plan-auth", "todo-login")
+if (similarity.total_score > 0.8) {
+  console.log("Highly related items!")
 }
 ```
 
-**Example Usage:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "save_proposal",
-    "arguments": {
-      "content": "Use PostgreSQL for user data storage",
-      "rationale": "PostgreSQL provides ACID compliance, excellent performance for relational data, and strong ecosystem support for our Node.js stack"
-    }
-  }
-}
-```
+### get_enhanced_work_state
 
----
+Get work state enhanced with smart referencing context and suggestions.
 
-### `search_work_items`
-
-Search through all work items including todos, plans, proposals, and findings.
-
-**Parameters:**
-- `query` (string, required): Search query
-- `type` (string, optional): Filter by work item type
-  - Valid values: `"todo"`, `"plan"`, `"proposal"`, `"finding"`, `"report"`, `"summary"`
-
-**Returns:**
 ```typescript
-WorkItem[]
-```
+get_enhanced_work_state(): EnhancedWorkState
 
-**Example Usage:**
-```json
+// Returns WorkState plus
 {
-  "method": "tools/call",
-  "params": {
-    "name": "search_work_items",
-    "arguments": {
-      "query": "authentication",
-      "type": "plan"
-    }
+  smart_suggestions: ContextualSuggestion[],
+  reference_summary: {
+    total_suggestions: number,
+    high_priority: number,
+    suggestion_types: { [type: string]: number }
   }
 }
+
+// Example
+const enhanced = await get_enhanced_work_state()
+console.log(`${enhanced.reference_summary.high_priority} high priority suggestions`)
 ```
 
----
+## Historical Context
 
-### `get_session_summary`
+### query_history
 
-Get summary of current session or a specific session by ID.
+Search through historical work items with advanced filtering.
 
-**Parameters:**
-- `session_id` (string, optional): Specific session ID to get summary for
-
-**Returns:**
 ```typescript
-{
-  session_id: string
-  timestamp: string
-  git_context: GitContext
-  completed_todos: number
-  pending_todos: number
-  findings_count: number
-  plans_created: number
-  proposals_made: number
-  key_decisions: string[]
-  outcomes: string[]
-}
-```
+query_history(
+  keyword: string,           // Search term
+  start_date?: string,       // YYYY-MM-DD format
+  end_date?: string,         // YYYY-MM-DD format
+  type?: string             // Work item type
+): HistoricalWorkItem[]
 
-**Example Usage:**
-```json
+// Returns work items with contextual relevance
 {
-  "method": "tools/call",
-  "params": {
-    "name": "get_session_summary",
-    "arguments": {
-      "session_id": "20240111_143022_12345"
-    }
+  ...WorkItem,
+  contextual_relevance?: {
+    confidence: number,
+    relationship_type: string,
+    priority: string,
+    action_hint: string
   }
 }
+
+// Example
+const pastAuth = await query_history(
+  "authentication",
+  "2025-07-01",
+  "2025-07-11",
+  "proposal"
+)
 ```
 
+### get_historical_context
 
----
+Retrieve detailed information about a specific historical item.
 
-### `load_work_state`
-
-Load work state for a specific branch or current branch.
-
-**Parameters:**
-- `branch` (string, optional): Branch name to load work state from
-
-**Returns:**
 ```typescript
-{
-  output: string  // Output from work.sh load command
-}
+get_historical_context(
+  item_id: string           // Historical item ID or filename
+): WorkItem | null
+
+// Example
+const decision = await get_historical_context("decision-use-postgres-2025-07-08")
+console.log(`Rationale: ${decision.metadata.decision_rationale}`)
 ```
 
-**Example Usage:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "load_work_state",
-    "arguments": {
-      "branch": "feature-authentication"
-    }
-  }
-}
-```
+### summarize_period
 
----
+Generate a summary of work activity for a time period.
 
-### `save_work_state`
-
-Manually save current work state with optional note.
-
-**Parameters:**
-- `note` (string, optional): Optional note about the save
-
-**Returns:**
 ```typescript
+summarize_period(
+  start_date: string,       // YYYY-MM-DD format
+  end_date: string          // YYYY-MM-DD format
+): PeriodSummary
+
+// Returns
 {
-  output: string  // Output from work.sh save command
+  period: { start: string, end: string },
+  total_items: number,
+  by_type: { [type: string]: number },
+  by_status: { [status: string]: number },
+  key_items: Array<{
+    id: string,
+    type: string,
+    content: string,
+    timestamp: string
+  }>
+}
+
+// Example
+const weekSummary = await summarize_period("2025-07-01", "2025-07-07")
+console.log(`Completed ${weekSummary.by_status.completed} items`)
+```
+
+### promote_to_active
+
+Move a historical item back to active context.
+
+```typescript
+promote_to_active(
+  item_id: string           // Historical item ID
+): WorkItem
+
+// Example
+await promote_to_active("plan-caching-strategy-2025-06-30")
+// Old plan now available in active context
+```
+
+### archive_active_item
+
+Move an active item to historical archive.
+
+```typescript
+archive_active_item(
+  item_id: string           // Active item ID
+): WorkItem
+
+// Example
+await archive_active_item("todo-old-feature")
+// Removes from active context, preserves in history
+```
+
+## Future Work Management
+
+### defer_to_future
+
+Intelligently defer work for future implementation.
+
+```typescript
+defer_to_future(
+  content: string,          // Work description
+  reason: string,           // Deferral reason
+  type?: string            // 'plan' | 'proposal' | 'todo' | 'idea'
+): FutureWorkItem
+
+// Returns
+{
+  id: string,
+  content: string,
+  similarity_metadata: SimilarityMetadata,
+  context: {
+    deprioritized_reason: string,
+    suggested_group: string | null
+  },
+  grouping_status: 'grouped' | 'ungrouped'
+}
+
+// Example
+await defer_to_future(
+  "Add social login providers",
+  "Out of scope for MVP - focus on basic auth first",
+  "todo"
+)
+```
+
+### list_future_groups
+
+View all future work groups and ungrouped items.
+
+```typescript
+list_future_groups(): FutureWorkOverview
+
+// Returns
+{
+  groups: WorkGroup[],
+  ungrouped_items: FutureWorkItem[],
+  suggestions: GroupingSuggestion[],
+  total_items: number
+}
+
+// Example
+const future = await list_future_groups()
+console.log(`${future.groups.length} work groups ready`)
+```
+
+### groom_future_work
+
+Analyze and reorganize future work with intelligent suggestions.
+
+```typescript
+groom_future_work(): GroomingAnalysis
+
+// Returns
+{
+  overview: FutureWorkOverview,
+  suggestions: GroupingSuggestion[],
+  similarity_analysis: {
+    feature_clusters: { [domain: string]: number },
+    technical_domains: { [domain: string]: number },
+    code_locations: { [location: string]: number }
+  },
+  recommendations: string[]
+}
+
+// Example
+const analysis = await groom_future_work()
+for (const suggestion of analysis.suggestions) {
+  console.log(`Consider grouping: ${suggestion.suggested_group_name}`)
 }
 ```
 
-**Example Usage:**
-```json
+### create_work_group
+
+Create a logical group of related future work items.
+
+```typescript
+create_work_group(
+  name: string,             // Group name
+  description: string,      // What the group contains
+  item_ids: string[]        // Future work item IDs
+): WorkGroup
+
+// Example
+await create_work_group(
+  "authentication-phase-2",
+  "Advanced authentication features including OAuth and 2FA",
+  ["item-123", "item-124", "item-125"]
+)
+```
+
+### promote_work_group
+
+Promote an entire group of related work to active context.
+
+```typescript
+promote_work_group(
+  group_name: string        // Name of work group
+): WorkItem[]
+
+// Example
+const items = await promote_work_group("authentication-phase-2")
+console.log(`Promoted ${items.length} items to active work`)
+```
+
+## Visualization Tools
+
+### generate_reference_map
+
+Generate a complete reference map for current work context.
+
+```typescript
+generate_reference_map(): ReferenceMap
+
+// Returns
 {
-  "method": "tools/call",
-  "params": {
-    "name": "save_work_state",
-    "arguments": {
-      "note": "Checkpoint after implementing authentication"
-    }
+  nodes: ReferenceNode[],
+  edges: ReferenceEdge[],
+  clusters: ReferenceCluster[],
+  summary: {
+    total_items: number,
+    total_references: number,
+    cluster_count: number,
+    orphaned_items: number
   }
 }
+
+// Example
+const map = await generate_reference_map()
+console.log(`Work graph: ${map.nodes.length} nodes, ${map.edges.length} edges`)
 ```
 
-## 📊 Data Types
+### generate_focused_reference_map
 
-### `WorkItem`
+Generate a reference map focused on a specific work item.
+
+```typescript
+generate_focused_reference_map(
+  item_id: string,          // Work item to focus on
+  depth?: number            // Traversal depth (1-5, default: 2)
+): ReferenceMap
+
+// Example
+const focusedMap = await generate_focused_reference_map("current-todo", 3)
+// Shows 3 levels of related work
+```
+
+### find_reference_path
+
+Find the reference path between two work items.
+
+```typescript
+find_reference_path(
+  source_id: string,        // Starting work item
+  target_id: string         // Target work item
+): string[]                 // Array of item IDs forming path
+
+// Example
+const path = await find_reference_path("todo-login", "plan-auth")
+if (path.length > 0) {
+  console.log(`Connected through ${path.length - 1} items`)
+}
+```
+
+### visualize_references
+
+Generate ASCII visualization of work item references.
+
+```typescript
+visualize_references(): { visualization: string }
+
+// Example output
+=== Work Item Reference Map ===
+
+📋 ACTIVE WORK:
+  ● todo: Implement user authentication
+    References:
+      → plan: Design auth architecture [█████]
+      ⚠ proposal: Switch to OAuth-only [███░░]
+      ~ todo: User profile implementation [████░]
+
+🔗 REFERENCE CLUSTERS:
+  📁 Authentication Features (5 items)
+     Themes: user-management, security
+     Type: feature
+
+📊 SUMMARY:
+  Items: 12
+  References: 18
+  Clusters: 3
+  Orphaned: 1
+```
+
+## Data Types
+
+### WorkItem
+
 ```typescript
 interface WorkItem {
   id: string
@@ -278,210 +513,88 @@ interface WorkItem {
   context: GitContext
   session_id: string
   timestamp: string
-  metadata?: WorkItemMetadata
-}
-```
-
-### `Finding`
-```typescript
-interface Finding {
-  id: string
-  type: 'research' | 'search' | 'analysis' | 'test_results' | 'implementation' | 'report'
-  content: string
-  context: string
-  tool_name: string
-  timestamp: string
-  session_id: string
-  working_directory: string
-  git_branch: string
-  git_worktree: string
-}
-```
-
-### `GitContext`
-```typescript
-interface GitContext {
-  branch: string
-  worktree: string
-  remote_url?: string
-  working_directory: string
-}
-```
-
-### `SessionSummary`
-```typescript
-interface SessionSummary {
-  session_id: string
-  timestamp: string
-  git_context: GitContext
-  completed_todos: number
-  pending_todos: number
-  findings_count: number
-  plans_created: number
-  proposals_made: number
-  key_decisions: string[]
-  outcomes: string[]
-}
-```
-
-## 🔧 Server Configuration
-
-### Starting the Server
-
-```bash
-# Build the server
-npm run build
-
-# Start the server
-npm start
-```
-
-### Claude Code Integration
-
-Add to your Claude Code MCP configuration:
-
-```json
-{
-  "mcpServers": {
-    "claude-work-tracker": {
-      "command": "node",
-      "args": ["/absolute/path/to/claude-work-tracker/dist/index.js"],
-      "env": {}
-    }
+  metadata?: {
+    priority?: 'low' | 'medium' | 'high'
+    plan_steps?: string[]
+    decision_rationale?: string
+    similarity_metadata?: SimilarityMetadata
+    smart_references?: WorkItemReference[]
   }
 }
 ```
 
-### Environment Variables
-
-```bash
-# Optional: Override default directories
-export CLAUDE_WORK_DIR="$HOME/.claude"
-export CLAUDE_WORK_STATE_DIR="$HOME/.claude/work-state"
-```
-
-## 🛠️ Error Handling
-
-### Common Error Responses
-
-**Tool Not Found:**
-```json
-{
-  "content": [{
-    "type": "text",
-    "text": "Error: Unknown tool: invalid_tool_name"
-  }],
-  "isError": true
-}
-```
-
-**Missing Required Parameters:**
-```json
-{
-  "content": [{
-    "type": "text",
-    "text": "Error: Missing required parameters: content and steps"
-  }],
-  "isError": true
-}
-```
-
-**File System Errors:**
-```json
-{
-  "content": [{
-    "type": "text",
-    "text": "Error: Unable to read work state directory"
-  }],
-  "isError": true
-}
-```
-
-## 📝 Usage Examples
-
-### Complete Workflow Example
+### SimilarityMetadata
 
 ```typescript
-// 1. Get current work state
-const workState = await mcpClient.call('get_work_state', {})
-
-// 2. Save a new plan
-const plan = await mcpClient.call('save_plan', {
-  content: "Implement user registration flow",
-  steps: [
-    "Create user registration form",
-    "Add email validation",
-    "Implement password hashing",
-    "Set up email verification"
-  ]
-})
-
-// 3. Save a related proposal
-const proposal = await mcpClient.call('save_proposal', {
-  content: "Use bcrypt for password hashing",
-  rationale: "bcrypt is well-tested, has good performance characteristics, and includes built-in salt generation"
-})
-
-// 4. Search for related work
-const relatedWork = await mcpClient.call('search_work_items', {
-  query: "user registration",
-  type: "todo"
-})
-
-// 5. Save work state with checkpoint
-const saveResult = await mcpClient.call('save_work_state', {
-  note: "Completed user registration planning phase"
-})
+interface SimilarityMetadata {
+  keywords: string[]
+  feature_domain: string
+  technical_domain: string
+  code_locations: string[]
+  strategic_theme: string
+}
 ```
 
-### Integration with Existing Scripts
+### ContextualSuggestion
 
-The MCP server integrates seamlessly with the existing bash scripts:
-
-```bash
-# These commands work alongside MCP server
-/work load feature-auth
-/work save "checkpoint"
-/work view authentication
-/work conflicts user
+```typescript
+interface ContextualSuggestion {
+  type: 'promote_historical' | 'review_conflict' | 'reference_decision' | 'continue_work'
+  priority: 'high' | 'medium' | 'low'
+  message: string
+  target_item_id: string
+  confidence: number
+  action_hint?: string
+}
 ```
 
-## 🔍 Debugging
+### WorkGroup
 
-### Testing Individual Tools
-
-```bash
-# Test tools list
-echo '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}' | node dist/index.js
-
-# Test get_work_state
-echo '{"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "get_work_state", "arguments": {}}, "id": 1}' | node dist/index.js
+```typescript
+interface WorkGroup {
+  id: string
+  name: string
+  description: string
+  items: string[]
+  similarity_score: number
+  strategic_value: 'low' | 'medium' | 'high'
+  estimated_effort: 'small' | 'medium' | 'large'
+  readiness_status: 'ready' | 'blocked' | 'waiting'
+  created_date: string
+  last_updated: string
+}
 ```
 
-### Server Logs
+## Error Handling
 
-The server logs errors to stderr:
-```bash
-# View server logs
-npm start 2> server.log
+All tools return consistent error responses:
+
+```typescript
+{
+  success: false,
+  error: string  // Human-readable error message
+}
 ```
 
-### Data Inspection
+Common error scenarios:
+- Missing required parameters
+- Work item not found
+- Invalid date formats
+- File system errors
+- JSON parsing errors
 
-```bash
-# View saved work items
-ls ~/.claude/todos/
+## Rate Limits and Performance
 
-# View work intelligence
-ls ~/.claude/work-intelligence/
+- No rate limits on MCP tool calls
+- Similarity calculations are optimized for <100ms response
+- Historical queries use indexed search for fast retrieval
+- Reference generation is cached for repeated calls
+- Visualization limited to reasonable graph sizes (configurable depth)
 
-# View findings
-ls ~/.claude/findings/
-```
+## Best Practices
 
-## 📚 Related Documentation
-
-- [Installation Guide](installation.md) - Setting up the server
-- [Configuration](configuration.md) - Customizing server behavior
-- [Architecture](architecture.md) - Understanding the system design
-- [Troubleshooting](troubleshooting.md) - Common issues and solutions
+1. **Batch Operations**: Use multiple tool calls in parallel when needed
+2. **Contextual Queries**: Always check suggestions before starting work
+3. **Historical Awareness**: Query history before implementing new features
+4. **Smart Deferral**: Use defer_to_future for scope management
+5. **Reference Validation**: Verify high-confidence references before acting

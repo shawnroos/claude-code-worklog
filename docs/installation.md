@@ -1,287 +1,318 @@
 # Installation Guide
 
-This guide covers all installation methods and setup options for the Claude Code Work Tracking System.
+Complete guide for installing and setting up Claude Work Tracker.
 
-## 🚀 Quick Installation
+## Prerequisites
 
-### One-Line Installation (Recommended)
+- **Claude Code** installed and configured
+- **Git** for version control
+- **Node.js 18+** (for MCP server)
+- **jq** for JSON processing
+- **bash** shell (zsh compatible)
+
+## Quick Start
+
+### One-Line Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/shawnroos/claude-work-tracker/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/username/claude-work-tracker/main/install.sh | bash
 ```
 
-This will:
-- ✅ Install all required scripts and configurations
-- ✅ Backup existing settings safely
-- ✅ Merge with your existing Claude Code setup
-- ✅ Set up all necessary directories and permissions
+This automatically:
+- ✅ Installs all components
+- ✅ Configures Claude Code integration
+- ✅ Sets up MCP server
+- ✅ Preserves existing settings
 
-### Local Installation
+## Step-by-Step Installation
 
-If you prefer to download and inspect before installing:
+### 1. Clone Repository
 
 ```bash
-# Clone the repository
-git clone https://github.com/shawnroos/claude-work-tracker.git
-cd claude-work-tracker
-
-# Run the installer
-./install.sh
+git clone https://github.com/username/claude-work-tracker.git ~/claude-work-tracker
+cd ~/claude-work-tracker
 ```
 
-## 🔧 Post-Installation Setup
-
-### 1. **Verify Installation**
+### 2. Install Dependencies
 
 ```bash
-# Test the presentation system
-~/.claude/scripts/work-presentation.sh test
-
-# Check work status
-~/.claude/scripts/work-status.sh
-
-# Try the /work command
-/work
-```
-
-### 2. **Build MCP Server** (Optional)
-
-```bash
-# Install dependencies
 npm install
-
-# Build TypeScript
-npm run build
-
-# Test the server
-npm start
 ```
 
-### 3. **Configure MCP Integration** (Optional)
+### 3. Build MCP Server
 
-Add to your Claude Code MCP configuration:
+```bash
+npm run build
+```
+
+### 4. Configure Claude Code
+
+Add to `~/.claude/claude_code.json`:
 
 ```json
 {
   "mcpServers": {
-    "claude-work-tracker": {
+    "work-tracker": {
       "command": "node",
-      "args": ["/absolute/path/to/claude-work-tracker/dist/index.js"],
-      "env": {}
+      "args": ["~/claude-work-tracker/dist/index.js"]
     }
   }
 }
 ```
 
-### 4. **Run Setup Wizard** (Optional)
+### 5. Verify Installation
 
 ```bash
-~/.claude/scripts/setup-wizard.sh
+# Test MCP server
+npm test
+
+# Check work tracking
+/work status
 ```
 
-Customize:
-- Presentation modes (quiet, summary, verbose)
-- Emoji styles (minimal_colored, modern, classic, minimal)
-- Notification preferences
-- Auto-restore settings
+## What Gets Installed
 
-## 📁 Installation Components
+### Directory Structure
 
-The installer creates and configures:
-
-### Global Configuration (`~/.claude/`)
 ```
 ~/.claude/
-├── CLAUDE.md                           # Global coding standards
-├── settings.local.json                 # Claude Code hooks
-├── work-tracking-config.json           # Presentation config
-├── scripts/                            # All automation scripts
-├── work-state/                         # Global work aggregation
-├── work-intelligence/                  # Plans and proposals
-├── projects/                           # Session logs
-├── todos/                              # Per-session todos
-└── findings/                           # Tool-captured findings
+├── claude_code.json          # MCP configuration
+├── scripts/                  # Shell integrations
+│   ├── work.sh              # /work command handler
+│   └── session-init.sh      # Session restoration
+└── CLAUDE.md                # Global instructions
+
+~/claude-work-tracker/
+├── dist/                    # Compiled MCP server
+├── src/                     # Source code
+└── docs/                    # Documentation
+
+project/.claude-work/        # Per-project storage
+├── active/                  # Current work items
+├── history/                 # Archived work
+└── future/                  # Deferred work
 ```
 
-### Project-Level Structure (`.claude-work/`)
-```
-your-project/
-└── .claude-work/
-    ├── WORK_HISTORY.md                 # Work history log
-    ├── PENDING_TODOS.json              # Incomplete todos
-    └── current_todos.json              # Current session backup
-```
+### Components
 
-### Installed Scripts
-- `session-init.sh` - Session start hook
-- `session-complete.sh` - Session end hook
-- `tool-complete-plan-capture.sh` - Plan capture hook
-- `work.sh` - Manual `/work` command
-- `work-*.sh` - Cross-worktree utilities
-- `update-work-intelligence.sh` - Intelligence aggregation
+1. **MCP Server** - API for work tracking
+2. **Smart References** - AI-powered linking
+3. **Shell Scripts** - Command integration
+4. **Storage Layer** - Local data persistence
 
-## ⚙️ Configuration Options
+## Configuration
 
-### Settings Files
+### Basic Settings
 
-**`~/.claude/settings.local.json`** - Hook configuration
-```json
-{
-  "hooks": {
-    "session_start": "~/.claude/scripts/session-init.sh",
-    "session_complete": "~/.claude/scripts/session-complete.sh",
-    "tool_complete": "~/.claude/scripts/tool-complete-plan-capture.sh"
-  },
-  "commands": {
-    "work": "~/.claude/scripts/work.sh"
-  }
-}
-```
+Create `~/.claude/work-tracker.json`:
 
-**`~/.claude/work-tracking-config.json`** - Presentation settings
 ```json
 {
   "presentation": {
-    "mode": "summary",
-    "show_notifications": true,
-    "emoji_style": "minimal_colored"
+    "mode": "summary",        // quiet | summary | verbose
+    "emoji_style": "modern"   // modern | minimal | classic
   },
-  "session": {
-    "auto_restore": true,
-    "auto_create_todos": false
+  "features": {
+    "auto_references": true,
+    "smart_suggestions": true,
+    "conflict_detection": true
+  },
+  "storage": {
+    "history_days": 90,
+    "compression": true
   }
 }
 ```
 
-### Environment Variables
+### Advanced Configuration
 
-Optional environment variables for customization:
+#### Custom Storage Location
 
 ```bash
-# Override default directories
-export CLAUDE_WORK_DIR="$HOME/.claude"
-export CLAUDE_WORK_STATE_DIR="$HOME/.claude/work-state"
-
-# MCP server configuration
-export CLAUDE_MCP_SERVER_PORT=3000
-export CLAUDE_MCP_SERVER_HOST="localhost"
+export CLAUDE_WORK_DIR="/custom/path"
 ```
 
-## 🔄 Updating
+#### Reference Sensitivity
 
-### Update from GitHub
+```json
+{
+  "smart_references": {
+    "similarity_threshold": 0.7,
+    "confidence_threshold": 0.6,
+    "max_suggestions": 10
+  }
+}
+```
+
+#### Git Integration
+
+```json
+{
+  "git": {
+    "track_branches": true,
+    "associate_commits": false,
+    "worktree_support": true
+  }
+}
+```
+
+## Platform-Specific Instructions
+
+### macOS
+
 ```bash
-curl -sSL https://raw.githubusercontent.com/shawnroos/claude-work-tracker/main/install.sh | bash
+# Install prerequisites
+brew install node jq
+
+# Install work tracker
+curl -sSL https://raw.githubusercontent.com/username/claude-work-tracker/main/install.sh | bash
 ```
 
-The installer will:
-- Detect existing installation
-- Backup current configuration
-- Update scripts while preserving your settings
-- Migrate any data format changes
+### Linux
 
-### Manual Update
 ```bash
-cd claude-work-tracker
-git pull origin main
-./install.sh
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install nodejs npm jq
+
+# Install work tracker
+curl -sSL https://raw.githubusercontent.com/username/claude-work-tracker/main/install.sh | bash
 ```
 
-## 🧹 Uninstalling
+### Windows (WSL)
 
-### Complete Removal
 ```bash
-~/.claude/uninstall.sh
+# In WSL terminal
+sudo apt-get update
+sudo apt-get install nodejs npm jq
+
+# Install work tracker
+curl -sSL https://raw.githubusercontent.com/username/claude-work-tracker/main/install.sh | bash
 ```
 
-This will:
-- ✅ Remove all scripts and configurations
-- ✅ Create backup of all data before removal
-- ✅ Preserve work history and conversation logs
-- ✅ Restore original Claude Code settings
-
-### Selective Removal
-```bash
-# Remove only MCP server
-rm -rf node_modules/ dist/ src/
-
-# Remove only hooks (keep data)
-rm ~/.claude/scripts/session-*.sh
-rm ~/.claude/scripts/tool-complete-*.sh
-
-# Remove only work intelligence (keep todos)
-rm -rf ~/.claude/work-intelligence/
-```
-
-## 🔧 Troubleshooting Installation
+## Troubleshooting
 
 ### Common Issues
 
-**Permission Errors:**
+#### "Command not found: /work"
+
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+source ~/.claude/scripts/work.sh
+```
+
+#### "MCP server not connecting"
+
+```bash
+# Check server status
+ps aux | grep claude-work-tracker
+
+# Restart Claude Code
+# Then verify MCP configuration
+cat ~/.claude/claude_code.json
+```
+
+#### "Permission denied"
+
 ```bash
 # Fix script permissions
 chmod +x ~/.claude/scripts/*.sh
 
-# Fix directory permissions
-chmod 755 ~/.claude/
+# Fix storage permissions
+chmod -R 755 ~/.claude-work/
 ```
 
-**Missing Dependencies:**
-```bash
-# Install jq (required for JSON processing)
-# macOS
-brew install jq
-
-# Ubuntu/Debian
-sudo apt-get install jq
-
-# Install Node.js (for MCP server)
-# macOS
-brew install node
-
-# Ubuntu/Debian
-sudo apt-get install nodejs npm
-```
-
-**Hook Not Working:**
-```bash
-# Check Claude Code settings
-cat ~/.claude/settings.local.json
-
-# Test hook manually
-echo '{"sessionId": "test"}' | ~/.claude/scripts/session-complete.sh
-```
-
-### Verification Commands
+### Verification Steps
 
 ```bash
-# Check installation completeness
-ls -la ~/.claude/scripts/
+# 1. Check installation
+ls -la ~/claude-work-tracker/dist/
 
-# Verify configuration
-~/.claude/scripts/work-presentation.sh test
+# 2. Test MCP server
+node ~/claude-work-tracker/dist/index.js
 
-# Test work commands
-/work status
+# 3. Verify work command
+/work help
 
-# Test MCP server (if installed)
-npm test
+# 4. Check storage
+ls -la .claude-work/
 ```
 
-## 📚 Next Steps
+## Updating
 
-After installation:
+### Automatic Update
 
-1. **Read the [Configuration Guide](configuration.md)** - Customize your setup
-2. **Try the [API Reference](api-reference.md)** - Explore MCP server tools
-3. **Check [Troubleshooting](troubleshooting.md)** - If you encounter issues
-4. **Review [Architecture](architecture.md)** - Understand how it works
+```bash
+cd ~/claude-work-tracker
+npm run update
+```
 
-## 🤝 Getting Help
+### Manual Update
 
-If you encounter issues:
+```bash
+cd ~/claude-work-tracker
+git pull origin main
+npm install
+npm run build
+```
 
-1. Check the [Troubleshooting Guide](troubleshooting.md)
-2. Review the installation logs: `~/.claude/hooks.log`
-3. Open an issue: https://github.com/shawnroos/claude-work-tracker/issues
-4. Include your system information and error messages
+## Uninstalling
+
+### Complete Removal
+
+```bash
+# Run uninstall script
+~/claude-work-tracker/scripts/uninstall.sh
+
+# Or manually
+rm -rf ~/claude-work-tracker
+rm -rf ~/.claude/scripts/work*
+rm -rf .claude-work/  # In each project
+```
+
+### Preserve Data
+
+```bash
+# Backup before uninstalling
+tar -czf claude-work-backup.tar.gz ~/.claude-work/
+
+# Remove only executables
+rm -rf ~/claude-work-tracker/dist/
+rm -rf ~/claude-work-tracker/node_modules/
+```
+
+## Security Considerations
+
+### Data Privacy
+- All data stored locally
+- No network transmission
+- Git-ignored by default
+
+### File Permissions
+```bash
+# Secure storage
+chmod 700 ~/.claude-work/
+chmod 600 ~/.claude-work/**/*.json
+```
+
+### Sensitive Data
+Add to `.gitignore`:
+```
+.claude-work/
+*.secret
+*-private.json
+```
+
+## Next Steps
+
+1. **Read the [User Guide](user-guide.md)** to learn usage
+2. **Check [API Reference](api-reference.md)** for all tools
+3. **Explore [Smart References](smart-references.md)** features
+4. **Join the community** for tips and updates
+
+## Getting Help
+
+- **Documentation**: Read the guides in `/docs`
+- **Issues**: GitHub issue tracker
+- **Community**: Discord server (coming soon)
+- **Email**: support@claudeworktracker.dev

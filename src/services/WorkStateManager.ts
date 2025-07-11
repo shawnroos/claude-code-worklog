@@ -1,7 +1,9 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs'
 import { join, dirname } from 'path'
 import { execSync } from 'child_process'
-import { WorkItem, Finding, GitContext, WorkState, SessionSummary } from '../types'
+import { WorkItem, Finding, GitContext, WorkState, SessionSummary, SimilarityMetadata } from '../types'
+import { SmartReferenceEngine, ContextualSuggestion } from './SmartReferenceEngine'
+import { ReferenceMapper, ReferenceMap } from './ReferenceMapper'
 
 export class WorkStateManager {
   private readonly baseDir = join(process.env.HOME || '', '.claude')
@@ -16,9 +18,13 @@ export class WorkStateManager {
   private readonly futureItemsDir = join(this.futureDir, 'items')
   private readonly futureGroupsDir = join(this.futureDir, 'groups')
   private readonly futureSuggestionsFile = join(this.futureDir, 'suggestions.json')
+  private smartReferenceEngine: SmartReferenceEngine
+  private referenceMapper: ReferenceMapper
 
   constructor() {
     this.ensureDirectories()
+    this.smartReferenceEngine = new SmartReferenceEngine(this)
+    this.referenceMapper = new ReferenceMapper(this)
   }
 
   private ensureDirectories(): void {
@@ -118,7 +124,7 @@ export class WorkStateManager {
     }
   }
 
-  private loadActiveTodos(): WorkItem[] {
+  public loadActiveTodos(): WorkItem[] {
     try {
       // Look for pending todos in current working directory
       const cwd = process.cwd()
@@ -196,8 +202,31 @@ export class WorkStateManager {
   }
 
   public saveWorkItem(workItem: WorkItem): void {
+    // Ensure similarity metadata is extracted
+    if (!workItem.metadata?.similarity_metadata) {
+      if (!workItem.metadata) {
+        workItem.metadata = {}
+      }
+      workItem.metadata.similarity_metadata = this.extractSimilarityMetadata(workItem.content)
+    }
+    
+    // Generate smart references
+    const smartReferences = this.smartReferenceEngine.generateAutomaticReferences(workItem)
+    if (smartReferences.length > 0) {
+      workItem.metadata.smart_references = smartReferences.map(ref => ({
+        target_id: ref.target_item_id,
+        similarity_score: ref.similarity_score,
+        relationship_type: ref.relationship_type,
+        confidence: ref.confidence,
+        auto_generated: ref.auto_generated
+      }))
+    }
+    
     const filePath = join(this.todosDir, `${workItem.id}.json`)
     this.writeJsonFile(filePath, workItem)
+    
+    // Update references in other items if needed
+    this.smartReferenceEngine.updateReferencesOnChange(workItem.id)
   }
 
   public saveFinding(finding: Finding): void {
@@ -661,8 +690,8 @@ export class WorkStateManager {
     }
   }
 
-  private extractSimilarityMetadata(content: string): any {
-    // Simple similarity metadata extraction based on content analysis
+  private extractSimilarityMetadata(content: string): SimilarityMetadata {
+    // Enhanced similarity metadata extraction based on content analysis
     const keywords = this.extractKeywords(content)
     const featureDomain = this.inferFeatureDomain(content, keywords)
     const technicalDomain = this.inferTechnicalDomain(content, keywords)
@@ -973,5 +1002,117 @@ export class WorkStateManager {
       const fs = require('fs')
       fs.unlinkSync(filePath)
     }
+  }
+
+  // Smart Referencing Methods
+
+  /**
+   * Get contextual suggestions for current active work
+   */
+  public getContextualSuggestions(): ContextualSuggestion[] {
+    const activeItems = this.loadActiveTodos()
+    return this.smartReferenceEngine.getContextualSuggestions(activeItems)
+  }
+
+  /**
+   * Generate smart references for a specific work item
+   */
+  public generateSmartReferences(itemId: string): any[] {
+    const activeItems = this.loadActiveTodos()
+    const item = activeItems.find(i => i.id === itemId)
+    
+    if (!item) {
+      // Try to find in historical items
+      const historicalItem = this.getHistoricalItem(itemId)
+      if (historicalItem) {
+        return this.smartReferenceEngine.generateAutomaticReferences(historicalItem)
+      }
+      return []
+    }
+    
+    return this.smartReferenceEngine.generateAutomaticReferences(item)
+  }
+
+  /**
+   * Calculate similarity between two work items
+   */
+  public calculateSimilarity(itemId1: string, itemId2: string): any {
+    const item1 = this.findWorkItem(itemId1)
+    const item2 = this.findWorkItem(itemId2)
+    
+    if (!item1 || !item2) {
+      return null
+    }
+    
+    return this.smartReferenceEngine.calculateSemanticSimilarity(item1, item2)
+  }
+
+  /**
+   * Get enhanced work state with smart referencing context
+   */
+  public getEnhancedWorkState(): any {
+    const baseWorkState = this.getCurrentWorkState()
+    const suggestions = this.getContextualSuggestions()
+    
+    return {
+      ...baseWorkState,
+      smart_suggestions: suggestions,
+      reference_summary: {
+        total_suggestions: suggestions.length,
+        high_priority: suggestions.filter(s => s.priority === 'high').length,
+        suggestion_types: this.groupSuggestionsByType(suggestions)
+      }
+    }
+  }
+
+  private findWorkItem(itemId: string): WorkItem | null {
+    // First try active items
+    const activeItems = this.loadActiveTodos()
+    const activeItem = activeItems.find(i => i.id === itemId)
+    if (activeItem) return activeItem
+    
+    // Then try historical items
+    return this.getHistoricalItem(itemId)
+  }
+
+  private groupSuggestionsByType(suggestions: ContextualSuggestion[]): any {
+    const grouped: { [key: string]: number } = {}
+    
+    for (const suggestion of suggestions) {
+      grouped[suggestion.type] = (grouped[suggestion.type] || 0) + 1
+    }
+    
+    return grouped
+  }
+
+  // Reference Mapping Methods
+
+  /**
+   * Generate complete reference map for current work context
+   */
+  public generateReferenceMap(): ReferenceMap {
+    return this.referenceMapper.generateReferenceMap()
+  }
+
+  /**
+   * Generate focused reference map for a specific work item
+   */
+  public generateFocusedReferenceMap(itemId: string, depth: number = 2): ReferenceMap {
+    return this.referenceMapper.generateFocusedMap(itemId, depth)
+  }
+
+  /**
+   * Find reference path between two work items
+   */
+  public findReferencePath(sourceId: string, targetId: string): string[] {
+    return this.referenceMapper.findReferencePath(sourceId, targetId)
+  }
+
+  /**
+   * Generate ASCII visualization of reference relationships
+   */
+  public visualizeReferences(): string {
+    const referenceMap = this.generateReferenceMap()
+    return this.referenceMapper.generateASCIIVisualization(referenceMap)
   }
 }

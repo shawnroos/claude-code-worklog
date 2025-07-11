@@ -1,4 +1,6 @@
 import { WorkItem, Finding, WorkState, SessionSummary } from '../types';
+import { ContextualSuggestion } from './SmartReferenceEngine';
+import { ReferenceMap } from './ReferenceMapper';
 export declare class WorkStateManager {
     private readonly baseDir;
     private readonly todosDir;
@@ -12,6 +14,8 @@ export declare class WorkStateManager {
     private readonly futureItemsDir;
     private readonly futureGroupsDir;
     private readonly futureSuggestionsFile;
+    private smartReferenceEngine;
+    private referenceMapper;
     constructor();
     private ensureDirectories;
     private getCurrentGitContext;
@@ -19,7 +23,7 @@ export declare class WorkStateManager {
     private writeJsonFile;
     private generateId;
     getCurrentWorkState(): WorkState;
-    private loadActiveTodos;
+    loadActiveTodos(): WorkItem[];
     private loadRecentFindings;
     private generateSessionSummary;
     saveWorkItem(workItem: WorkItem): void;
@@ -64,5 +68,39 @@ export declare class WorkStateManager {
     private groupItemsByTechnicalDomain;
     private groupItemsByCodeLocation;
     private removeFutureWorkItem;
+    /**
+     * Get contextual suggestions for current active work
+     */
+    getContextualSuggestions(): ContextualSuggestion[];
+    /**
+     * Generate smart references for a specific work item
+     */
+    generateSmartReferences(itemId: string): any[];
+    /**
+     * Calculate similarity between two work items
+     */
+    calculateSimilarity(itemId1: string, itemId2: string): any;
+    /**
+     * Get enhanced work state with smart referencing context
+     */
+    getEnhancedWorkState(): any;
+    private findWorkItem;
+    private groupSuggestionsByType;
+    /**
+     * Generate complete reference map for current work context
+     */
+    generateReferenceMap(): ReferenceMap;
+    /**
+     * Generate focused reference map for a specific work item
+     */
+    generateFocusedReferenceMap(itemId: string, depth?: number): ReferenceMap;
+    /**
+     * Find reference path between two work items
+     */
+    findReferencePath(sourceId: string, targetId: string): string[];
+    /**
+     * Generate ASCII visualization of reference relationships
+     */
+    visualizeReferences(): string;
 }
 //# sourceMappingURL=WorkStateManager.d.ts.map
