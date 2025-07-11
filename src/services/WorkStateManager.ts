@@ -270,8 +270,7 @@ export class WorkStateManager {
   }
 
   public getCrossWorktreeConflicts(): string[] {
-    // This would analyze work items across different worktrees
-    // For now, return empty array
+    // Cross-worktree functionality disabled to reduce context overhead
     return []
   }
 }

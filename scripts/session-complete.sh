@@ -109,21 +109,10 @@ if [ "$WORKING_DIR" != "unknown" ] && [ -d "$WORKING_DIR" ]; then
     ~/.claude/scripts/work-presentation.sh summary "$COMPLETED_COUNT" "$PENDING_COUNT" "$WORKTREE_NAME" "$GIT_BRANCH"
     
     # Show sync notification
-    ~/.claude/scripts/work-presentation.sh sync "Updating global work state" "for $WORKTREE_NAME"
+    ~/.claude/scripts/work-presentation.sh sync "Updating local work state" "for $WORKTREE_NAME"
     
-    # Update global work state aggregation
-    if [ ! -z "$GIT_BRANCH" ] && [ ! -z "$WORKTREE_NAME" ]; then
-        ~/.claude/scripts/update-global-state.sh "$WORKING_DIR" "$WORKTREE_NAME" "$GIT_BRANCH" &
-    fi
-    
-    # Check for potential conflicts (async)
-    (
-        sleep 2  # Let global state update first
-        if [ -f "$HOME/.claude/work-state/projects/$(basename "$WORKING_DIR")/worktrees" ]; then
-            CONFLICT_COUNT=$(find "$HOME/.claude/work-state/projects/$(basename "$WORKING_DIR")/worktrees" -name "*.json" -not -name "$WORKTREE_NAME.json" | wc -l | tr -d ' ')
-            ~/.claude/scripts/work-presentation.sh conflicts "$(basename "$WORKING_DIR")" "$CONFLICT_COUNT"
-        fi
-    ) &
+    # Note: Global state aggregation disabled to reduce context overhead
+    # Focus on local work state only
 fi
 
 exit 0

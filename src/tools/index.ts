@@ -87,20 +87,6 @@ export class WorkTrackingTools {
         }
       },
       {
-        name: 'get_cross_worktree_status',
-        description: 'Get work status across different git worktrees',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            keyword: {
-              type: 'string',
-              description: 'Optional: keyword to filter related work'
-            }
-          },
-          required: []
-        }
-      },
-      {
         name: 'load_work_state',
         description: 'Load work state for specific branch or worktree',
         inputSchema: {
@@ -149,8 +135,6 @@ export class WorkTrackingTools {
         case 'get_session_summary':
           return this.handleGetSessionSummary(params)
         
-        case 'get_cross_worktree_status':
-          return this.handleGetCrossWorktreeStatus(params)
         
         case 'load_work_state':
           return this.handleLoadWorkState(params)
@@ -260,30 +244,6 @@ export class WorkTrackingTools {
     }
   }
 
-  private handleGetCrossWorktreeStatus(params: McpToolParams): McpToolResponse {
-    const { keyword } = params
-    // This would call the existing bash script
-    const { execSync } = require('child_process')
-    
-    try {
-      const command = keyword 
-        ? `~/.claude/scripts/work-conflicts.sh "${keyword}"`
-        : `~/.claude/scripts/work-status.sh`
-      
-      const output = execSync(command, { encoding: 'utf8' })
-      
-      return {
-        success: true,
-        data: { output },
-        message: 'Cross-worktree status retrieved'
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: `Error getting cross-worktree status: ${error instanceof Error ? error.message : String(error)}`
-      }
-    }
-  }
 
   private handleLoadWorkState(params: McpToolParams): McpToolResponse {
     const { branch } = params

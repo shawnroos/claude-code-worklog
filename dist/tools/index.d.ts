@@ -9,7 +9,6 @@ export declare class WorkTrackingTools {
     private handleSaveProposal;
     private handleSearchWorkItems;
     private handleGetSessionSummary;
-    private handleGetCrossWorktreeStatus;
     private handleLoadWorkState;
     private handleSaveWorkState;
 }
