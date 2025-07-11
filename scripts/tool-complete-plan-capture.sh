@@ -20,9 +20,15 @@ if [ -z "$SESSION_ID" ] || [ "$SESSION_ID" = "null" ]; then
     exit 0
 fi
 
-# Create work intelligence directory
-WORK_INTELLIGENCE_DIR="$HOME/.claude/work-intelligence"
-mkdir -p "$WORK_INTELLIGENCE_DIR"
+# Create work intelligence directory - use project-local storage
+if [ -n "$WORKING_DIR" ] && [ "$WORKING_DIR" != "unknown" ]; then
+    WORK_INTELLIGENCE_DIR="$WORKING_DIR/.claude-work/history"
+    mkdir -p "$WORK_INTELLIGENCE_DIR"
+else
+    # Fallback to global storage
+    WORK_INTELLIGENCE_DIR="$HOME/.claude/work-intelligence"
+    mkdir -p "$WORK_INTELLIGENCE_DIR"
+fi
 
 # Function to extract and save work intelligence
 save_work_intelligence() {
@@ -36,7 +42,8 @@ save_work_intelligence() {
     fi
     
     local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    local intelligence_id="${SESSION_ID}_${timestamp}_${intelligence_type}"
+    local date_part=$(date +"%Y-%m-%d")
+    local intelligence_id="${date_part}-${intelligence_type}-${SESSION_ID}"
     
     # Get git context if in a git repo
     local git_branch=""

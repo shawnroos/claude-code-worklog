@@ -11,5 +11,15 @@ export declare class WorkTrackingTools {
     private handleGetSessionSummary;
     private handleLoadWorkState;
     private handleSaveWorkState;
+    private handleQueryHistory;
+    private handleGetHistoricalContext;
+    private handleSummarizePeriod;
+    private handlePromoteToActive;
+    private handleArchiveActiveItem;
+    private handleDeferToFuture;
+    private handleListFutureGroups;
+    private handleGroomFutureWork;
+    private handleCreateWorkGroup;
+    private handlePromoteWorkGroup;
 }
 //# sourceMappingURL=index.d.ts.map

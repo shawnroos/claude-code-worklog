@@ -1,0 +1,31 @@
+{
+  "last_updated": "2025-07-11T17:15:38.045Z",
+  "grouping_suggestions": [
+    {
+      "suggested_group_name": "User Management",
+      "items": [
+        "1752254138041_bmqdy05pm",
+        "1752254138043_e9kc4tizc"
+      ],
+      "similarity_score": 0.8,
+      "rationale": "Items related to user management"
+    }
+  ],
+  "similarity_analysis": {
+    "feature_clusters": {
+      "user-management": 2,
+      "performance": 1,
+      "search-and-filtering": 1
+    },
+    "technical_domains": {
+      "general": 3,
+      "backend-api": 1
+    },
+    "code_locations": {
+      "src/auth/": 2,
+      "src/models/": 1
+    }
+  },
+  "auto_grouping_enabled": true,
+  "similarity_threshold": 0.7
+}

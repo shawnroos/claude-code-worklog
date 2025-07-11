@@ -38,6 +38,7 @@ npm start
 - **Decision Rationale** - Preserves reasoning behind important decisions
 - **Session Summaries** - Comprehensive session-end summaries
 - **Cross-Session Continuity** - Links plans → implementations → outcomes
+- **Future Work Management** - Heuristic similarity-based grouping for scope management
 
 ### ⚡ **Manual Commands**
 - **`/work load`** - Restore work state for current or specific branch
@@ -92,17 +93,27 @@ npm start
 }
 ```
 
-**Available Tools:** `get_work_state`, `save_plan`, `save_proposal`, `search_work_items`, `get_session_summary`, `load_work_state`, `save_work_state`
+**Available Tools:** 
+- **Core:** `get_work_state`, `save_plan`, `save_proposal`, `search_work_items`, `get_session_summary`, `load_work_state`, `save_work_state`
+- **History:** `query_history`, `get_historical_context`, `summarize_period`, `promote_to_active`, `archive_active_item`
+- **Future Work:** `defer_to_future`, `list_future_groups`, `groom_future_work`, `create_work_group`, `promote_work_group`
 
 ## 🎯 Work Intelligence Types
 
 The system captures and categorizes:
+
+### Active Work
 - **Plans** - Structured implementation plans with steps
 - **Proposals** - Architectural decisions and recommendations  
 - **Strategic Insights** - Key insights from research and analysis
 - **Decision Rationale** - Reasoning behind important decisions
 - **Session Summaries** - Comprehensive session outcomes
-- **Discovered Plans** - Plans identified during code analysis
+
+### Future Work (Heuristic Grouping)
+- **Frictionless Deferral** - Quick scope decisions: "Let's do A and B, put C in future work"
+- **Intelligent Grouping** - Automatic similarity analysis by feature/technical/strategic domains
+- **Smart Organization** - Groups like "Authentication Features", "Performance Optimization", "User Experience"
+- **Batch Promotion** - Bring back entire coherent groups when ready
 
 ## 📈 Benefits
 

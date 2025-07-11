@@ -11,6 +11,12 @@ export interface WorkItemMetadata {
   implementation_notes?: string
   priority?: 'low' | 'medium' | 'high'
   tags?: string[]
+  promoted_from_future?: boolean
+  promoted_from_history?: boolean
+  promoted_from_group?: string
+  original_schedule?: any
+  archived_from?: string
+  archived_at?: string
 }
 
 export interface WorkItem {

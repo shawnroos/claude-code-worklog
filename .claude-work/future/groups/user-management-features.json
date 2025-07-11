@@ -1,0 +1,15 @@
+{
+  "id": "1752254150849_4gozddqz6",
+  "name": "User Management Features",
+  "description": "User authentication, profiles, and account management features",
+  "items": [
+    "1752254138043_e9kc4tizc",
+    "1752254138041_bmqdy05pm"
+  ],
+  "similarity_score": 0.8,
+  "strategic_value": "medium",
+  "estimated_effort": "medium",
+  "readiness_status": "ready",
+  "created_date": "2025-07-11T17:15:50.849Z",
+  "last_updated": "2025-07-11T17:15:50.850Z"
+}

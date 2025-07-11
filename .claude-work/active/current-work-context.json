@@ -1,0 +1,119 @@
+{
+  "active_work": {
+    "current_focus": "Enhanced Work Intelligence Architecture",
+    "session_id": "2025-07-11-enhanced-architecture",
+    "timestamp": "2025-07-11T17:00:00Z",
+    "priority_items": [
+      {
+        "id": "restructure-storage",
+        "type": "task",
+        "content": "Restructure storage from global to project-local",
+        "status": "completed",
+        "priority": "high"
+      },
+      {
+        "id": "two-tier-system",
+        "type": "task", 
+        "content": "Create two-tier system: history/ and active/",
+        "status": "completed",
+        "priority": "high"
+      },
+      {
+        "id": "context-lifecycle",
+        "type": "task",
+        "content": "Build context lifecycle management (aging, promotion, summarization)",
+        "status": "completed",
+        "priority": "medium"
+      },
+      {
+        "id": "historical-query-tools",
+        "type": "task",
+        "content": "Enhance MCP server with historical query tools",
+        "status": "completed",
+        "priority": "medium"
+      },
+      {
+        "id": "smart-referencing",
+        "type": "task",
+        "content": "Create smart referencing system between active and historical contexts",
+        "status": "in_progress",
+        "priority": "medium"
+      }
+    ],
+    "recent_decisions": [
+      {
+        "decision": "Use project-local storage instead of global ~/.claude/todos/",
+        "rationale": "Reduces context overhead and improves project isolation",
+        "reference": "history/2025-07-11-local-focus-proposal.json"
+      }
+    ],
+    "historical_references": [
+      {
+        "file": "history/2025-07-11-simplified-work-tracking-plan.json",
+        "summary": "Original system simplification plan - completed",
+        "relevance": "Foundation for current architecture enhancements",
+        "query_hint": "Use query_history(keyword='simplification') to find related work"
+      },
+      {
+        "file": "history/2025-07-11-local-focus-proposal.json",
+        "summary": "Decision to focus on local project work tracking",
+        "relevance": "Core architectural principle for current implementation",
+        "query_hint": "Use get_historical_context(item_id='2025-07-11-local-focus-proposal') for full details"
+      }
+    ],
+    "available_tools": [
+      {
+        "tool": "query_history",
+        "description": "Search historical work items by keyword, date, or type",
+        "example": "query_history(keyword='architecture', type='plan')"
+      },
+      {
+        "tool": "get_historical_context",
+        "description": "Get detailed information about specific historical items",
+        "example": "get_historical_context(item_id='2025-07-11-simplified-work-tracking-plan')"
+      },
+      {
+        "tool": "summarize_period",
+        "description": "Generate summary of work activity for a time period",
+        "example": "summarize_period(start_date='2025-07-01', end_date='2025-07-11')"
+      },
+      {
+        "tool": "promote_to_active",
+        "description": "Bring historical items back to active context",
+        "example": "promote_to_active(item_id='historical-item-id')"
+      },
+      {
+        "tool": "schedule_future_work",
+        "description": "Schedule work for future branches, dates, or releases",
+        "example": "schedule_future_work(content='Add auth system', type='plan', schedule_type='branch', target='feature-auth', reason='Out of scope for current sprint')"
+      },
+      {
+        "tool": "list_future_work",
+        "description": "View all scheduled future work items",
+        "example": "list_future_work(schedule_type='branch')"
+      },
+      {
+        "tool": "promote_future_work",
+        "description": "Bring future work back to active context",
+        "example": "promote_future_work(item_id='future-item-id')"
+      }
+    ],
+    "future_work_summary": {
+      "total_items": 0,
+      "by_schedule_type": {
+        "branch": 0,
+        "date": 0,
+        "release": 0
+      },
+      "next_scheduled": null,
+      "auto_promote_enabled": true,
+      "note": "Use list_future_work() to view specific items. Future work is kept out of active context to maintain focus."
+    }
+  },
+  "context_metadata": {
+    "last_updated": "2025-07-11T17:00:00Z",
+    "items_count": 2,
+    "auto_archive_after_days": 30,
+    "priority_threshold": "medium"
+  }
+}

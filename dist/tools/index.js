@@ -112,6 +112,171 @@ class WorkTrackingTools {
                     },
                     required: []
                 }
+            },
+            {
+                name: 'query_history',
+                description: 'Search through historical work items with optional date range filtering',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        keyword: {
+                            type: 'string',
+                            description: 'Search keyword or phrase'
+                        },
+                        start_date: {
+                            type: 'string',
+                            description: 'Start date in YYYY-MM-DD format (optional)'
+                        },
+                        end_date: {
+                            type: 'string',
+                            description: 'End date in YYYY-MM-DD format (optional)'
+                        },
+                        type: {
+                            type: 'string',
+                            enum: ['plan', 'proposal', 'finding', 'report', 'summary', 'digest'],
+                            description: 'Optional: filter by work item type'
+                        }
+                    },
+                    required: ['keyword']
+                }
+            },
+            {
+                name: 'get_historical_context',
+                description: 'Retrieve detailed information from a specific historical item',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        item_id: {
+                            type: 'string',
+                            description: 'Historical item identifier or filename'
+                        }
+                    },
+                    required: ['item_id']
+                }
+            },
+            {
+                name: 'summarize_period',
+                description: 'Generate summary of work activity for a specific time period',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        start_date: {
+                            type: 'string',
+                            description: 'Start date in YYYY-MM-DD format'
+                        },
+                        end_date: {
+                            type: 'string',
+                            description: 'End date in YYYY-MM-DD format'
+                        }
+                    },
+                    required: ['start_date', 'end_date']
+                }
+            },
+            {
+                name: 'promote_to_active',
+                description: 'Move a historical item to active context',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        item_id: {
+                            type: 'string',
+                            description: 'Historical item identifier to promote'
+                        }
+                    },
+                    required: ['item_id']
+                }
+            },
+            {
+                name: 'archive_active_item',
+                description: 'Move an active item to historical archive',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        item_id: {
+                            type: 'string',
+                            description: 'Active item identifier to archive'
+                        }
+                    },
+                    required: ['item_id']
+                }
+            },
+            {
+                name: 'defer_to_future',
+                description: 'Frictionless deferral of work for future implementation',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        content: {
+                            type: 'string',
+                            description: 'Work item description'
+                        },
+                        reason: {
+                            type: 'string',
+                            description: 'Reason for deprioritization (e.g., "Out of scope for current sprint")'
+                        },
+                        type: {
+                            type: 'string',
+                            enum: ['plan', 'proposal', 'todo', 'idea'],
+                            description: 'Type of work item (optional, defaults to "idea")'
+                        }
+                    },
+                    required: ['content', 'reason']
+                }
+            },
+            {
+                name: 'list_future_groups',
+                description: 'View current future work groups and ungrouped items',
+                inputSchema: {
+                    type: 'object',
+                    properties: {},
+                    required: []
+                }
+            },
+            {
+                name: 'groom_future_work',
+                description: 'Analyze and reorganize future work with intelligent suggestions',
+                inputSchema: {
+                    type: 'object',
+                    properties: {},
+                    required: []
+                }
+            },
+            {
+                name: 'create_work_group',
+                description: 'Create a logical group of related future work items',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        name: {
+                            type: 'string',
+                            description: 'Group name (e.g., "Authentication Features")'
+                        },
+                        description: {
+                            type: 'string',
+                            description: 'Description of what the group contains'
+                        },
+                        item_ids: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: 'List of future work item IDs to include in group'
+                        }
+                    },
+                    required: ['name', 'description', 'item_ids']
+                }
+            },
+            {
+                name: 'promote_work_group',
+                description: 'Promote an entire group of related work back to active context',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        group_name: {
+                            type: 'string',
+                            description: 'Name of the work group to promote'
+                        }
+                    },
+                    required: ['group_name']
+                }
             }
         ];
     }
@@ -132,6 +297,26 @@ class WorkTrackingTools {
                     return this.handleLoadWorkState(params);
                 case 'save_work_state':
                     return this.handleSaveWorkState(params);
+                case 'query_history':
+                    return this.handleQueryHistory(params);
+                case 'get_historical_context':
+                    return this.handleGetHistoricalContext(params);
+                case 'summarize_period':
+                    return this.handleSummarizePeriod(params);
+                case 'promote_to_active':
+                    return this.handlePromoteToActive(params);
+                case 'archive_active_item':
+                    return this.handleArchiveActiveItem(params);
+                case 'defer_to_future':
+                    return this.handleDeferToFuture(params);
+                case 'list_future_groups':
+                    return this.handleListFutureGroups(params);
+                case 'groom_future_work':
+                    return this.handleGroomFutureWork(params);
+                case 'create_work_group':
+                    return this.handleCreateWorkGroup(params);
+                case 'promote_work_group':
+                    return this.handlePromoteWorkGroup(params);
                 default:
                     return {
                         success: false,
@@ -263,6 +448,222 @@ class WorkTrackingTools {
             return {
                 success: false,
                 error: `Error saving work state: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleQueryHistory(params) {
+        const { keyword, start_date, end_date, type } = params;
+        try {
+            const historyResults = this.workStateManager.queryHistory(keyword, start_date, end_date, type);
+            return {
+                success: true,
+                data: historyResults,
+                message: `Found ${historyResults.length} historical items matching "${keyword}"`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error querying history: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleGetHistoricalContext(params) {
+        const { item_id } = params;
+        if (!item_id) {
+            return {
+                success: false,
+                error: 'Missing required parameter: item_id'
+            };
+        }
+        try {
+            const historicalItem = this.workStateManager.getHistoricalItem(item_id);
+            if (!historicalItem) {
+                return {
+                    success: false,
+                    error: `Historical item not found: ${item_id}`
+                };
+            }
+            return {
+                success: true,
+                data: historicalItem,
+                message: `Retrieved historical context for ${item_id}`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error retrieving historical context: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleSummarizePeriod(params) {
+        const { start_date, end_date } = params;
+        if (!start_date || !end_date) {
+            return {
+                success: false,
+                error: 'Missing required parameters: start_date and end_date'
+            };
+        }
+        try {
+            const summary = this.workStateManager.summarizePeriod(start_date, end_date);
+            return {
+                success: true,
+                data: summary,
+                message: `Generated summary for period ${start_date} to ${end_date}`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error generating period summary: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handlePromoteToActive(params) {
+        const { item_id } = params;
+        if (!item_id) {
+            return {
+                success: false,
+                error: 'Missing required parameter: item_id'
+            };
+        }
+        try {
+            const promoted = this.workStateManager.promoteToActive(item_id);
+            return {
+                success: true,
+                data: promoted,
+                message: `Promoted ${item_id} to active context`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error promoting to active: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleArchiveActiveItem(params) {
+        const { item_id } = params;
+        if (!item_id) {
+            return {
+                success: false,
+                error: 'Missing required parameter: item_id'
+            };
+        }
+        try {
+            const archived = this.workStateManager.archiveActiveItem(item_id);
+            return {
+                success: true,
+                data: archived,
+                message: `Archived ${item_id} to historical storage`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error archiving active item: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleDeferToFuture(params) {
+        const { content, reason, type } = params;
+        if (!content || !reason) {
+            return {
+                success: false,
+                error: 'Missing required parameters: content and reason'
+            };
+        }
+        try {
+            const futureWorkItem = this.workStateManager.deferToFuture(content, reason, type || 'idea');
+            return {
+                success: true,
+                data: futureWorkItem,
+                message: `Deferred work to future: ${content.slice(0, 50)}...`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error deferring to future: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleListFutureGroups(params) {
+        try {
+            const futureGroups = this.workStateManager.listFutureGroups();
+            return {
+                success: true,
+                data: futureGroups,
+                message: `Found ${futureGroups.groups.length} groups and ${futureGroups.ungrouped_items.length} ungrouped items`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error listing future groups: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleGroomFutureWork(params) {
+        try {
+            const analysis = this.workStateManager.groomFutureWork();
+            return {
+                success: true,
+                data: analysis,
+                message: `Analyzed future work: ${analysis.overview.total_items} total items, ${analysis.suggestions.length} grouping suggestions`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error grooming future work: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handleCreateWorkGroup(params) {
+        const { name, description, item_ids } = params;
+        if (!name || !description || !item_ids || !Array.isArray(item_ids)) {
+            return {
+                success: false,
+                error: 'Missing required parameters: name, description, and item_ids'
+            };
+        }
+        try {
+            const workGroup = this.workStateManager.createWorkGroup(name, description, item_ids);
+            return {
+                success: true,
+                data: workGroup,
+                message: `Created work group "${name}" with ${item_ids.length} items`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error creating work group: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+    handlePromoteWorkGroup(params) {
+        const { group_name } = params;
+        if (!group_name) {
+            return {
+                success: false,
+                error: 'Missing required parameter: group_name'
+            };
+        }
+        try {
+            const promotedItems = this.workStateManager.promoteWorkGroup(group_name);
+            return {
+                success: true,
+                data: promotedItems,
+                message: `Promoted work group "${group_name}" with ${promotedItems.length} items to active context`
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: `Error promoting work group: ${error instanceof Error ? error.message : String(error)}`
             };
         }
     }

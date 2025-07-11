@@ -1,0 +1,28 @@
+{
+  "id": "1752254138043_0eadqqelt",
+  "type": "future_work",
+  "original_type": "idea",
+  "content": "Implement advanced search with filters and sorting",
+  "similarity_metadata": {
+    "keywords": [
+      "implement",
+      "advanced",
+      "search",
+      "filters",
+      "sorting"
+    ],
+    "feature_domain": "search-and-filtering",
+    "technical_domain": "general",
+    "code_locations": [],
+    "strategic_theme": "general"
+  },
+  "context": {
+    "deprioritized_from": "active",
+    "deprioritized_date": "2025-07-11T17:15:38.043Z",
+    "deprioritized_reason": "Requires backend API changes",
+    "suggested_group": null
+  },
+  "grouping_status": "ungrouped",
+  "priority_when_promoted": "medium",
+  "created_at": "2025-07-11T17:15:38.043Z"
+}

@@ -1,0 +1,29 @@
+{
+  "id": "1752254138041_bmqdy05pm",
+  "type": "future_work",
+  "original_type": "idea",
+  "content": "Add user authentication with OAuth2 support",
+  "similarity_metadata": {
+    "keywords": [
+      "user",
+      "authentication",
+      "oauth2",
+      "support"
+    ],
+    "feature_domain": "user-management",
+    "technical_domain": "general",
+    "code_locations": [
+      "src/auth/"
+    ],
+    "strategic_theme": "user-experience"
+  },
+  "context": {
+    "deprioritized_from": "active",
+    "deprioritized_date": "2025-07-11T17:15:38.041Z",
+    "deprioritized_reason": "Out of scope for current sprint",
+    "suggested_group": "User Management Features"
+  },
+  "grouping_status": "grouped",
+  "priority_when_promoted": "medium",
+  "created_at": "2025-07-11T17:15:38.042Z"
+}
