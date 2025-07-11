@@ -1,78 +1,62 @@
 # Claude Code Work Tracking System
 
-A comprehensive work tracking system for Claude Code that provides persistent todo management, cross-worktree awareness, and manual `/work` slash commands.
+A comprehensive work tracking system for Claude Code that provides persistent todo management, cross-worktree awareness, work intelligence capture, and **MCP server integration**.
 
-## 🚀 Quick Install
+## 🚀 Quick Start
 
-**One-line installation (GitHub):**
+**One-line installation:**
 ```bash
 curl -sSL https://raw.githubusercontent.com/shawnroos/claude-work-tracker/main/install.sh | bash
 ```
 
-**Local installation:**
-```bash
-# Clone or download this repository, then:
-./install.sh
-```
-
 **After installation:**
 ```bash
-# Optional: Run setup wizard to customize your experience
-~/.claude/scripts/setup-wizard.sh
-
 # Test the system
 ~/.claude/scripts/work-presentation.sh test
 
-# Try the new /work command
+# Build and start the MCP server
+npm run build
+npm start
+
+# Try the /work command
 /work
 ```
 
-**That's it!** The system starts working automatically in your next Claude session.
+## ✨ Features
 
----
+### 🎯 **Core Functionality**
+- **Persistent Todo Tracking** - Todos survive across Claude sessions
+- **Work Intelligence Capture** - Automatically captures plans, proposals, and strategic insights
+- **Git Context Awareness** - Associates work with specific branches and worktrees
+- **Cross-Worktree Intelligence** - Detects related work across different feature branches
+- **MCP Server Integration** - Programmatic access via Model Context Protocol
 
-## 📖 Table of Contents
+### 🧠 **Work Intelligence System**
+- **Plan Capture** - Automatically saves plans from `exit_plan_mode` and planning discussions
+- **Proposal Tracking** - Captures architectural decisions and strategic recommendations
+- **Strategic Insights** - Extracts key insights from research and analysis
+- **Decision Rationale** - Preserves reasoning behind important decisions
+- **Session Summaries** - Comprehensive session-end summaries
+- **Cross-Session Continuity** - Links plans → implementations → outcomes
 
-- [🚀 Quick Install](#-quick-install)
-- [✨ Features](#features)
-- [⚙️ Manual Commands](#manual-commands)
-- [🎮 Usage](#usage)
-- [⚙️ Configuration](#configuration)
-- [🔧 Manual Installation](#manual-installation)
-- [❓ FAQ](#faq)
-- [🗑️ Uninstall](#-uninstall)
+### ⚡ **Manual Commands**
+- **`/work load`** - Restore work state for current or specific branch
+- **`/work save`** - Save current work state with optional notes
+- **`/work view`** - Global work overview with optional filtering
+- **`/work status`** - Current session status and recent activity
+- **`/work conflicts`** - Find related work across worktrees
 
----
+## 📚 Documentation
 
-## Features
+- **[Installation Guide](docs/installation.md)** - Detailed installation and setup
+- **[API Reference](docs/api-reference.md)** - MCP server tools and endpoints
+- **[Architecture](docs/architecture.md)** - System design and data flow
+- **[Configuration](docs/configuration.md)** - Customization and settings
+- **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
+- **[Hook System](docs/hooks.md)** - Developing custom hooks
+- **[Developer Guide](docs/development.md)** - Contributing and building
 
-### 🎯 Core Functionality
-- **Persistent Todo Tracking**: Todos survive across Claude sessions
-- **Git Context Awareness**: Associates work with specific branches and worktrees
-- **Cross-Worktree Intelligence**: Detects related work across different feature branches
-- **Manual `/work` Commands**: Full control over work state with slash commands
-- **Hybrid Architecture**: Local efficiency + global visibility when needed
-
-### ⚡ Manual Commands
-- **`/work load`**: Restore work state for current or specific branch
-- **`/work save`**: Save current work state with optional notes
-- **`/work view`**: Global work overview with optional filtering
-- **`/work status`**: Current session status and recent activity
-- **`/work conflicts`**: Find related work across worktrees
-
-### 🎛️ Presentation Control
-- **Three modes**: quiet, summary (default), verbose
-- **Customizable styling**: minimal_colored (default), modern, classic, minimal
-- **Smart notifications**: Session summaries, conflict alerts, sync status
-
-### 🔄 Automatic Workflows
-- **Session hooks**: Automatically capture completed work and save incomplete todos
-- **Background sync**: Updates global state without blocking your workflow
-- **Conflict detection**: Alerts when related work exists in other worktrees
-
-## Manual Commands
-
-The `/work` slash command provides manual control over all automated features:
+## 🔧 Quick Commands
 
 ### Basic Usage
 ```bash
@@ -91,185 +75,67 @@ The `/work` slash command provides manual control over all automated features:
 /work conflicts api     # Find API-related work conflicts
 ```
 
-### Command Details
+## 🛠️ MCP Server
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `/work load [branch]` | Restore work state and todos | `/work load feature-login` |
-| `/work save [note]` | Save current work state manually | `/work save "api refactor done"` |
-| `/work view [filter]` | View global work overview | `/work view authentication` |
-| `/work status` | Show current session and recent activity | `/work status` |
-| `/work conflicts <keyword>` | Find related work across worktrees | `/work conflicts database` |
-
-## Manual Installation
-
-If you prefer to install manually or want to understand the system better:
-
-### Required Files
-- `CLAUDE.md` - Global coding standards and preferences
-- `settings.local.json` - Hook configuration and permissions
-- `work-tracking-config.json` - Presentation and behavior settings
-- `scripts/` - All automation scripts
-
-### Directory Structure
-```
-~/.claude/
-├── CLAUDE.md                     # Global preferences
-├── settings.local.json           # Hooks & permissions
-├── work-tracking-config.json     # Presentation config
-├── scripts/                      # Automation scripts
-│   ├── session-complete.sh       # Session end hook
-│   ├── tool-complete.sh          # Todo update hook
-│   ├── update-global-state.sh    # Global state aggregation
-│   ├── restore-todos.sh          # Todo restoration  
-│   ├── work.sh                   # Manual /work command
-│   ├── work-*.sh                 # Cross-worktree commands
-│   └── work-presentation.sh      # Display control
-├── work-state/                   # Global work aggregation
-├── projects/                     # Session conversation logs
-└── todos/                        # Per-session todo files
-```
-
-## Usage
-
-### Basic Commands
-```bash
-# Check for incomplete todos from previous sessions
-~/.claude/scripts/restore-todos.sh
-
-# Manually save current work state
-~/.claude/scripts/save.sh
-
-# Global overview of active work
-~/.claude/scripts/work-status.sh
-
-# Find related work in other worktrees
-~/.claude/scripts/work-conflicts.sh auth
-
-# Load full project context (higher token usage)
-~/.claude/scripts/work-context.sh ProjectName
-```
-
-### Presentation Control
-```bash
-# Set presentation mode
-~/.claude/scripts/work-presentation.sh mode quiet|summary|verbose
-
-# Test current settings
-~/.claude/scripts/work-presentation.sh test
-```
-
-### Git Worktree Integration
-The system automatically detects and tracks:
-- Current branch name
-- Worktree location (main vs feature worktrees)
-- Cross-worktree todo relationships
-- Project-level work aggregation
-
-## Configuration
-
-### Presentation Modes
-- **quiet**: Minimal feedback, no session summaries
-- **summary**: Balanced feedback with session summaries (default)
-- **verbose**: Detailed feedback with todo diffs and worktree details
-
-### Emoji Styles
-- **minimal_colored**: ✓ ○ ● ! with colors (default)
-- **modern**: ✅ 🔄 ⚡ ⚠️ 
-- **classic**: [✓] [○] [●] [!]
-- **minimal**: ✓ ○ ● ! (no colors)
-
-## How It Works
-
-### Session Lifecycle
-1. **Start session**: Optionally restore incomplete todos with `restore-todos.sh`
-2. **During work**: TodoWrite hook backs up current state
-3. **Session end**: Stop hook captures completed work and preserves incomplete todos
-4. **Background sync**: Global state updated with worktree context
-
-### Cross-Worktree Intelligence
-- Maintains global project overview across all worktrees
-- Detects potential conflicts when similar work exists elsewhere
-- Preserves context about which branch/worktree todos originated from
-- Enables smart restoration based on current git context
-
-## Example Output
+The system includes an MCP server for programmatic access:
 
 ```bash
-=== Work Session Summary ===
-★ **Session Complete** | Worktree: `feature-auth` | Branch: `feature-auth`
-✓ **Completed:** 3 todos  
-○ **Pending:** 2 todos saved for next session
+# Build and start
+npm run build
+npm start
 
-↻ **Work Sync:** Updating global work state for feature-auth
-
-! **Potential Conflicts:** Found 1 related todos in other worktrees
-💡 Run: `work-conflicts` to review
+# Configure in Claude Code
+{
+  "mcpServers": {
+    "claude-work-tracker": {
+      "command": "node",
+      "args": ["/path/to/claude-work-tracker/dist/index.js"]
+    }
+  }
+}
 ```
 
-## Benefits
+**Available Tools:** `get_work_state`, `save_plan`, `save_proposal`, `search_work_items`, `get_session_summary`, `get_cross_worktree_status`, `load_work_state`, `save_work_state`
+
+## 🎯 Work Intelligence Types
+
+The system captures and categorizes:
+- **Plans** - Structured implementation plans with steps
+- **Proposals** - Architectural decisions and recommendations  
+- **Strategic Insights** - Key insights from research and analysis
+- **Decision Rationale** - Reasoning behind important decisions
+- **Session Summaries** - Comprehensive session outcomes
+- **Discovered Plans** - Plans identified during code analysis
+
+## 📈 Benefits
 
 ### For Individual Workflows
-- Never lose track of incomplete work between sessions
-- Context-aware todo restoration based on current branch
-- Visual feedback about work progress and conflicts
+- Never lose track of plans, proposals, or incomplete work
+- Context-aware restoration based on current branch
+- Comprehensive work intelligence across sessions
 
 ### For Multi-Worktree Development
-- Coordinate work across feature branches
-- Prevent duplicate effort on similar tasks
-- Maintain project-level visibility while preserving worktree isolation
+- Coordinate work and decisions across feature branches
+- Prevent duplicate effort on similar architectural decisions
+- Cross-worktree strategic insight sharing
 
-### For Team Collaboration
-- Standardized work tracking across team members
-- Git-aware context preservation
-- Configurable presentation to match team preferences
-
-## ❓ FAQ
-
-### How does it work?
-The system uses Claude Code's hooks feature to automatically capture your work when sessions end and restore context when sessions begin.
-
-### Will it interfere with my existing Claude setup?
-No! The installer safely merges with your existing configuration and creates backups. You can uninstall anytime.
-
-### Does it work with git worktrees?
-Yes! The system is specifically designed for git worktree workflows and provides cross-worktree intelligence.
-
-### Can I customize the appearance?
-Absolutely! Run `~/.claude/scripts/setup-wizard.sh` to customize presentation modes and visual styles.
-
-### What if I don't like it?
-Easy! Run `~/.claude/uninstall.sh` to remove everything safely while preserving your data.
-
-### Is my data safe?
-Yes! The system never sends your data anywhere - everything stays local. Plus, backups are created during install/uninstall.
-
----
+### For AI-Assisted Development
+- Preserve Claude's planning and strategic insights
+- Maintain continuity of architectural decisions
+- Enable sophisticated work intelligence queries
 
 ## 🗑️ Uninstall
-
-To remove the work tracking system:
 
 ```bash
 ~/.claude/uninstall.sh
 ```
 
-This will:
-- ✅ Remove all work tracking scripts and configurations  
-- ✅ Create a backup of everything before removal
-- ✅ Preserve your work history and conversation data
-- ✅ Clean up hooks and permissions automatically
-
-To reinstall later, just use the one-line installer again!
-
----
+Creates backups and safely removes all components while preserving your work history.
 
 ## 🤝 Contributing
 
-Found a bug or have an idea? Open an issue at: https://github.com/shawnroos/claude-code-worklog/issues
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and contribution guidelines.
 
----
+## 📋 License
 
-## License
-
-This work tracking system is part of the Claude Code ecosystem and follows the same usage guidelines.
+MIT License - Part of the Claude Code ecosystem.

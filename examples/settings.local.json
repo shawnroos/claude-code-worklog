@@ -48,17 +48,21 @@
     },
     "/work": {
       "command": "~/.claude/scripts/work.sh",
-      "description": "Manual work tracking commands: load, save, view, status, conflicts"
+      "description": "Manual work tracking commands: load, save, view, status, conflicts, findings"
     }
   },
   "hooks": {
+    "session_start": {
+      "command": "~/.claude/scripts/session-init.sh false",
+      "description": "Automatically restore work state and show pending todos when Claude sessions start"
+    },
     "session_complete": {
       "command": "~/.claude/scripts/session-complete.sh",
       "description": "Automatically capture work state when Claude sessions end"
     },
     "tool_complete": {
       "command": "~/.claude/scripts/tool-complete.sh",
-      "description": "Automatically backup todos after TodoWrite operations"
+      "description": "Capture todos and findings after tool operations"
     }
   }
 }

@@ -1,0 +1,85 @@
+{
+  "name": "claude-work-tracker",
+  "version": "1.0.0",
+  "description": "MCP Server for Claude Work Tracking System",
+  "capabilities": {
+    "tools": {
+      "get_work_state": {
+        "description": "Get current work state including todos, findings, and session summary",
+        "parameters": {}
+      },
+      "save_plan": {
+        "description": "Save a plan with structured steps for future reference",
+        "parameters": {
+          "content": "string",
+          "steps": "array of strings"
+        }
+      },
+      "save_proposal": {
+        "description": "Save a proposal or architectural decision with rationale",
+        "parameters": {
+          "content": "string",
+          "rationale": "string"
+        }
+      },
+      "search_work_items": {
+        "description": "Search through work items (todos, plans, proposals, findings)",
+        "parameters": {
+          "query": "string",
+          "type": "optional enum: todo|plan|proposal|finding|report|summary"
+        }
+      },
+      "get_session_summary": {
+        "description": "Get summary of current or specified session",
+        "parameters": {
+          "session_id": "optional string"
+        }
+      },
+      "get_cross_worktree_status": {
+        "description": "Get work status across different git worktrees",
+        "parameters": {
+          "keyword": "optional string"
+        }
+      },
+      "load_work_state": {
+        "description": "Load work state for specific branch or worktree",
+        "parameters": {
+          "branch": "optional string"
+        }
+      },
+      "save_work_state": {
+        "description": "Manually save current work state",
+        "parameters": {
+          "note": "optional string"
+        }
+      }
+    }
+  },
+  "integration": {
+    "claude_code_hooks": {
+      "session_start": "~/.claude/scripts/session-init.sh",
+      "session_complete": "~/.claude/scripts/session-complete.sh",
+      "tool_complete": "~/.claude/scripts/tool-complete-plan-capture.sh"
+    },
+    "work_intelligence": {
+      "directory": "~/.claude/work-intelligence",
+      "aggregation_script": "~/.claude/scripts/update-work-intelligence.sh",
+      "types": [
+        "plan",
+        "proposal", 
+        "strategic_insight",
+        "decision_rationale",
+        "session_summary",
+        "structured_todo",
+        "discovered_plan"
+      ]
+    }
+  },
+  "data_sources": {
+    "todos": "~/.claude/todos/",
+    "findings": "~/.claude/findings/",
+    "work_state": "~/.claude/work-state/",
+    "work_intelligence": "~/.claude/work-intelligence/",
+    "local_work_state": ".claude-work/"
+  }
+}

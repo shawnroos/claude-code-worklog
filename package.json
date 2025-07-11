@@ -1,11 +1,12 @@
 {
   "name": "claude-work-tracker",
   "version": "1.0.0",
-  "description": "Automated work tracking system for Claude Code with persistent todo management and cross-worktree awareness",
-  "main": "scripts/session-init.sh",
+  "description": "Automated work tracking system for Claude Code with persistent todo management, cross-worktree awareness, and MCP server",
+  "main": "dist/index.js",
   "scripts": {
-    "install": "./install.sh",
-    "uninstall": "./uninstall.sh", 
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
     "test": "scripts/work-presentation.sh test",
     "setup": "scripts/setup-wizard.sh"
   },
@@ -15,7 +16,9 @@
     "automation",
     "todo-management",
     "git-worktree",
-    "productivity"
+    "productivity",
+    "mcp",
+    "mcp-server"
   ],
   "author": "Shawn Roos",
   "license": "MIT",
@@ -24,6 +27,7 @@
     "url": "https://github.com/shawnroos/claude-work-tracker.git"
   },
   "bin": {
+    "claude-work-tracker": "./dist/index.js",
     "save": "./scripts/save.sh",
     "work-status": "./scripts/work-status.sh", 
     "work-conflicts": "./scripts/work-conflicts.sh",
@@ -31,11 +35,13 @@
     "work-presentation": "./scripts/work-presentation.sh"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=18.0.0"
   },
-  "dependencies": {},
-  "devDependencies": {},
-  "peerDependencies": {
-    "jq": "*"
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "@types/node": "^20.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
   }
 }
