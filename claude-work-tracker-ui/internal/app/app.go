@@ -19,17 +19,20 @@ const (
 )
 
 type App struct {
-	dataClient    *data.Client
-	currentView   ViewType
-	sidebar       *views.SidebarModel
-	dashboard     *views.DashboardModel
-	workItems     *views.WorkItemsModel
-	references    *views.ReferencesModel
-	futureWork    *views.FutureWorkModel
-	width         int
-	height        int
-	quitting      bool
-	sidebarWidth  int
+	dataClient       *data.Client
+	enhancedClient   *data.EnhancedClient
+	currentView      ViewType
+	sidebar          *views.SidebarModel
+	dashboard        *views.DashboardModel
+	workItems        *views.WorkItemsModel
+	enhancedWorkItems *views.EnhancedWorkItemsModel
+	references       *views.ReferencesModel
+	futureWork       *views.FutureWorkModel
+	width            int
+	height           int
+	quitting         bool
+	sidebarWidth     int
+	useEnhanced      bool
 }
 
 var (
@@ -43,21 +46,26 @@ var (
 
 func NewApp() *App {
 	dataClient := data.NewClient()
+	enhancedClient := data.NewEnhancedClient()
 	sidebar := views.NewSidebarModel()
 	dashboard := views.NewDashboardModel(dataClient)
 	workItems := views.NewWorkItemsModel(dataClient)
+	enhancedWorkItems := views.NewEnhancedWorkItemsModel(enhancedClient)
 	references := views.NewReferencesModel(dataClient)
 	futureWork := views.NewFutureWorkModel(dataClient)
 
 	return &App{
-		dataClient:   dataClient,
-		currentView:  DashboardView,
-		sidebar:      sidebar,
-		dashboard:    dashboard,
-		workItems:    workItems,
-		references:   references,
-		futureWork:   futureWork,
-		sidebarWidth: 25,
+		dataClient:        dataClient,
+		enhancedClient:    enhancedClient,
+		currentView:       DashboardView,
+		sidebar:           sidebar,
+		dashboard:         dashboard,
+		workItems:         workItems,
+		enhancedWorkItems: enhancedWorkItems,
+		references:        references,
+		futureWork:        futureWork,
+		sidebarWidth:      25,
+		useEnhanced:       true, // Default to enhanced view
 	}
 }
 
@@ -84,6 +92,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		
 		a.dashboard, _ = a.dashboard.Update(contentMsg)
 		a.workItems, _ = a.workItems.Update(contentMsg)
+		a.enhancedWorkItems, _ = a.enhancedWorkItems.Update(contentMsg)
 		a.references, _ = a.references.Update(contentMsg)
 		a.futureWork, _ = a.futureWork.Update(contentMsg)
 		
@@ -97,7 +106,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Initialize the selected view
 		switch a.currentView {
 		case WorkItemsView:
-			cmds = append(cmds, a.workItems.Init())
+			if a.useEnhanced {
+				cmds = append(cmds, a.enhancedWorkItems.Init())
+			} else {
+				cmds = append(cmds, a.workItems.Init())
+			}
 		case ReferencesView:
 			cmds = append(cmds, a.references.Init())
 		case FutureWorkView:
@@ -127,7 +140,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DashboardView:
 		a.dashboard, viewCmd = a.dashboard.Update(msg)
 	case WorkItemsView:
-		a.workItems, viewCmd = a.workItems.Update(msg)
+		if a.useEnhanced {
+			a.enhancedWorkItems, viewCmd = a.enhancedWorkItems.Update(msg)
+		} else {
+			a.workItems, viewCmd = a.workItems.Update(msg)
+		}
 	case ReferencesView:
 		a.references, viewCmd = a.references.Update(msg)
 	case FutureWorkView:
@@ -155,7 +172,11 @@ func (a *App) View() string {
 	case DashboardView:
 		content = a.dashboard.View()
 	case WorkItemsView:
-		content = a.workItems.View()
+		if a.useEnhanced {
+			content = a.enhancedWorkItems.View()
+		} else {
+			content = a.workItems.View()
+		}
 	case ReferencesView:
 		content = a.references.View()
 	case FutureWorkView:
