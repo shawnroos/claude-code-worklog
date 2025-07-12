@@ -1,11 +1,16 @@
 package app
 
 import (
+	"log"
+	"path/filepath"
+
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"claude-work-tracker-ui/internal/data"
+	"claude-work-tracker-ui/internal/models"
+	"claude-work-tracker-ui/internal/sync"
 	"claude-work-tracker-ui/internal/views"
 )
 
@@ -18,9 +23,16 @@ const (
 	FutureWorkView
 )
 
+// RefreshMsg is sent when UI needs to refresh due to file changes
+type RefreshMsg struct {
+	EventType string
+	Item      *models.MarkdownWorkItem
+}
+
 type App struct {
 	dataClient       *data.Client
 	enhancedClient   *data.EnhancedClient
+	syncCoordinator  *sync.SyncCoordinator
 	currentView      ViewType
 	sidebar          *views.SidebarModel
 	dashboard        *views.DashboardModel
@@ -33,6 +45,7 @@ type App struct {
 	quitting         bool
 	sidebarWidth     int
 	useEnhanced      bool
+	syncEnabled      bool
 }
 
 var (
@@ -54,7 +67,7 @@ func NewApp() *App {
 	references := views.NewReferencesModel(dataClient)
 	futureWork := views.NewFutureWorkModel(dataClient)
 
-	return &App{
+	app := &App{
 		dataClient:        dataClient,
 		enhancedClient:    enhancedClient,
 		currentView:       DashboardView,
@@ -66,17 +79,73 @@ func NewApp() *App {
 		futureWork:        futureWork,
 		sidebarWidth:      25,
 		useEnhanced:       true, // Default to enhanced view
+		syncEnabled:       true, // Enable real-time sync by default
 	}
+
+	// Initialize sync coordinator if enabled
+	if app.syncEnabled {
+		// Determine watch directory - look for .claude-work directory
+		watchDir := ".claude-work"
+		if absPath, err := filepath.Abs(watchDir); err == nil {
+			watchDir = absPath
+		}
+
+		syncCoordinator, err := sync.NewSyncCoordinator(watchDir, enhancedClient)
+		if err != nil {
+			log.Printf("Failed to initialize sync coordinator: %v", err)
+			app.syncEnabled = false
+		} else {
+			app.syncCoordinator = syncCoordinator
+			
+			// Set up UI update callback
+			syncCoordinator.SetUICallback(app.handleSyncEvent)
+			
+			// Start the sync coordinator
+			if err := syncCoordinator.Start(); err != nil {
+				log.Printf("Failed to start sync coordinator: %v", err)
+				app.syncEnabled = false
+			} else {
+				log.Println("Real-time sync enabled")
+			}
+		}
+	}
+
+	return app
 }
 
 func (a *App) Init() tea.Cmd {
 	return a.dashboard.Init()
 }
 
+// handleSyncEvent is called when files change and converts to bubbletea messages
+func (a *App) handleSyncEvent(eventType string, item *models.MarkdownWorkItem) {
+	// This would typically use a bubbletea Program.Send method
+	// For now, we'll handle it synchronously in the UI
+	log.Printf("Sync event: %s", eventType)
+	// Note: In a real implementation, we'd need to pass the tea.Program
+	// and use program.Send(RefreshMsg{EventType: eventType, Item: item})
+}
+
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case RefreshMsg:
+		// Handle real-time refresh events
+		log.Printf("UI refresh triggered: %s", msg.EventType)
+		
+		// Refresh the current view
+		switch a.currentView {
+		case WorkItemsView:
+			if a.useEnhanced {
+				cmds = append(cmds, a.enhancedWorkItems.Init())
+			}
+		case DashboardView:
+			cmds = append(cmds, a.dashboard.Init())
+		}
+		
+		return a, tea.Batch(cmds...)
+
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
@@ -123,6 +192,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, key.NewBinding(key.WithKeys("q", "ctrl+c"))):
 			a.quitting = true
+			
+			// Clean up sync coordinator
+			if a.syncCoordinator != nil {
+				a.syncCoordinator.Stop()
+			}
+			
 			return a, tea.Quit
 		}
 	}

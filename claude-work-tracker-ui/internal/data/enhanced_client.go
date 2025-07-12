@@ -279,6 +279,11 @@ func (c *EnhancedClient) GetTypeOverview() (map[string]int, error) {
 	return overview, nil
 }
 
+// GetMarkdownIO returns the markdown IO instance for direct access
+func (c *EnhancedClient) GetMarkdownIO() *MarkdownIO {
+	return c.markdownIO
+}
+
 // generateShortID creates a short unique identifier
 func generateShortID() string {
 	const letters = "abcdefghijklmnopqrstuvwxyz0123456789"
