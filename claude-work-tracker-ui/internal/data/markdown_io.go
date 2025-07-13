@@ -14,7 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// MarkdownIO handles reading and writing markdown work items
+// MarkdownIO handles reading and writing markdown work items, artifacts, and work containers
 type MarkdownIO struct {
 	baseDir string
 }
@@ -306,4 +306,448 @@ func containsTag(tags []string, query string) bool {
 		}
 	}
 	return false
+}
+
+// === Work Container Methods ===
+
+// ReadWork reads a Work container from a markdown file
+func (m *MarkdownIO) ReadWork(filepath string) (*models.Work, error) {
+	content, err := ioutil.ReadFile(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	matches := frontmatterRegex.FindSubmatch(content)
+	if len(matches) < 3 {
+		return nil, fmt.Errorf("invalid markdown format: no frontmatter found")
+	}
+
+	frontmatter := matches[1]
+	markdownContent := strings.TrimSpace(string(matches[2]))
+
+	// Parse YAML frontmatter
+	var work models.Work
+	if err := yaml.Unmarshal(frontmatter, &work); err != nil {
+		return nil, fmt.Errorf("failed to parse frontmatter: %w", err)
+	}
+
+	// Set content and file info
+	work.Content = markdownContent
+	work.Filepath = filepath
+	work.Filename = filepath[strings.LastIndex(filepath, "/")+1:]
+
+	return &work, nil
+}
+
+// WriteWork writes a Work container to a file
+func (m *MarkdownIO) WriteWork(work *models.Work) error {
+	// Generate filename if not set
+	if work.Filename == "" {
+		work.Filename = m.generateWorkFilename(work)
+	}
+
+	// Determine directory based on schedule
+	dir := m.getWorkDirectory(work.Schedule)
+	fullPath := filepath.Join(dir, work.Filename)
+
+	// Ensure directory exists
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	// Generate markdown content
+	content, err := m.generateWorkContent(work)
+	if err != nil {
+		return fmt.Errorf("failed to generate content: %w", err)
+	}
+
+	// Write file
+	if err := ioutil.WriteFile(fullPath, content, 0644); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	work.Filepath = fullPath
+	return nil
+}
+
+// generateWorkContent creates the full markdown file content for Work with frontmatter
+func (m *MarkdownIO) generateWorkContent(work *models.Work) ([]byte, error) {
+	var buf bytes.Buffer
+
+	// Write frontmatter
+	buf.WriteString("---\n")
+	
+	// Use a custom YAML encoder to control formatting
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+	
+	// Create a map to control field order for Work
+	frontmatter := map[string]interface{}{
+		"id":             work.ID,
+		"title":          work.Title,
+		"description":    work.Description,
+		"schedule":       work.Schedule,
+		"created_at":     work.CreatedAt,
+		"updated_at":     work.UpdatedAt,
+		"started_at":     work.StartedAt,
+		"git_context":    work.GitContext,
+		"session_number": work.SessionNumber,
+		"technical_tags": work.TechnicalTags,
+		"artifact_refs":  work.ArtifactRefs,
+		"group_id":       work.GroupID,
+		"metadata":       work.Metadata,
+	}
+	
+	if err := encoder.Encode(frontmatter); err != nil {
+		return nil, fmt.Errorf("failed to encode frontmatter: %w", err)
+	}
+	
+	buf.WriteString("---\n\n")
+	
+	// Write content
+	buf.WriteString(work.Content)
+	if !strings.HasSuffix(work.Content, "\n") {
+		buf.WriteString("\n")
+	}
+
+	return buf.Bytes(), nil
+}
+
+// generateWorkFilename creates a filename for Work items: work-{brief-description}-{date}-{short-id}.md
+func (m *MarkdownIO) generateWorkFilename(work *models.Work) string {
+	// Extract brief description from title (first few words, sanitized)
+	title := strings.ToLower(work.Title)
+	words := strings.Fields(title)
+	if len(words) > 4 {
+		words = words[:4]
+	}
+	description := strings.Join(words, "-")
+	
+	// Sanitize description for filename
+	description = regexp.MustCompile(`[^a-z0-9-]+`).ReplaceAllString(description, "-")
+	description = strings.Trim(description, "-")
+	
+	// Get date
+	date := work.CreatedAt.Format("2006-01-02")
+	
+	// Get short ID (last 6 chars or generate)
+	shortID := work.ID
+	if len(shortID) > 6 {
+		shortID = shortID[len(shortID)-6:]
+	}
+	
+	return fmt.Sprintf("work-%s-%s-%s.md", description, date, shortID)
+}
+
+// getWorkDirectory returns the appropriate directory for a Work item
+func (m *MarkdownIO) getWorkDirectory(schedule string) string {
+	switch schedule {
+	case models.ScheduleNow:
+		return filepath.Join(m.baseDir, "work", "now")
+	case models.ScheduleNext:
+		return filepath.Join(m.baseDir, "work", "next")
+	case models.ScheduleLater:
+		return filepath.Join(m.baseDir, "work", "later")
+	default:
+		return filepath.Join(m.baseDir, "work", "unscheduled")
+	}
+}
+
+// === Artifact Methods ===
+
+// ReadArtifact reads an Artifact from a markdown file
+func (m *MarkdownIO) ReadArtifact(filepath string) (*models.Artifact, error) {
+	content, err := ioutil.ReadFile(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	matches := frontmatterRegex.FindSubmatch(content)
+	if len(matches) < 3 {
+		return nil, fmt.Errorf("invalid markdown format: no frontmatter found")
+	}
+
+	frontmatter := matches[1]
+	markdownContent := strings.TrimSpace(string(matches[2]))
+
+	// Parse YAML frontmatter
+	var artifact models.Artifact
+	if err := yaml.Unmarshal(frontmatter, &artifact); err != nil {
+		return nil, fmt.Errorf("failed to parse frontmatter: %w", err)
+	}
+
+	// Set content and file info
+	artifact.Content = markdownContent
+	artifact.Filepath = filepath
+	artifact.Filename = filepath[strings.LastIndex(filepath, "/")+1:]
+
+	return &artifact, nil
+}
+
+// WriteArtifact writes an Artifact to a file
+func (m *MarkdownIO) WriteArtifact(artifact *models.Artifact) error {
+	// Generate filename if not set
+	if artifact.Filename == "" {
+		artifact.Filename = m.generateArtifactFilename(artifact)
+	}
+
+	// Determine directory based on type
+	dir := m.getArtifactDirectory(artifact.Type)
+	fullPath := filepath.Join(dir, artifact.Filename)
+
+	// Ensure directory exists
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	// Generate markdown content
+	content, err := m.generateArtifactContent(artifact)
+	if err != nil {
+		return fmt.Errorf("failed to generate content: %w", err)
+	}
+
+	// Write file
+	if err := ioutil.WriteFile(fullPath, content, 0644); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	artifact.Filepath = fullPath
+	return nil
+}
+
+// generateArtifactContent creates the full markdown file content for Artifact with frontmatter
+func (m *MarkdownIO) generateArtifactContent(artifact *models.Artifact) ([]byte, error) {
+	var buf bytes.Buffer
+
+	// Write frontmatter
+	buf.WriteString("---\n")
+	
+	// Use a custom YAML encoder to control formatting
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+	
+	// Create a map to control field order for Artifact
+	frontmatter := map[string]interface{}{
+		"id":                artifact.ID,
+		"type":              artifact.Type,
+		"summary":           artifact.Summary,
+		"technical_tags":    artifact.TechnicalTags,
+		"session_number":    artifact.SessionNumber,
+		"created_at":        artifact.CreatedAt,
+		"updated_at":        artifact.UpdatedAt,
+		"git_context":       artifact.GitContext,
+		"related_artifacts": artifact.RelatedArtifacts,
+		"work_refs":         artifact.WorkRefs,
+		"group_id":          artifact.GroupID,
+		"metadata":          artifact.Metadata,
+	}
+	
+	if err := encoder.Encode(frontmatter); err != nil {
+		return nil, fmt.Errorf("failed to encode frontmatter: %w", err)
+	}
+	
+	buf.WriteString("---\n\n")
+	
+	// Write content
+	buf.WriteString(artifact.Content)
+	if !strings.HasSuffix(artifact.Content, "\n") {
+		buf.WriteString("\n")
+	}
+
+	return buf.Bytes(), nil
+}
+
+// generateArtifactFilename creates a filename for Artifacts: {type}-{brief-description}-{date}-{short-id}.md
+func (m *MarkdownIO) generateArtifactFilename(artifact *models.Artifact) string {
+	// Extract brief description from summary (first few words, sanitized)
+	summary := strings.ToLower(artifact.Summary)
+	words := strings.Fields(summary)
+	if len(words) > 4 {
+		words = words[:4]
+	}
+	description := strings.Join(words, "-")
+	
+	// Sanitize description for filename
+	description = regexp.MustCompile(`[^a-z0-9-]+`).ReplaceAllString(description, "-")
+	description = strings.Trim(description, "-")
+	
+	// Get date
+	date := artifact.CreatedAt.Format("2006-01-02")
+	
+	// Get short ID (last 6 chars or generate)
+	shortID := artifact.ID
+	if len(shortID) > 6 {
+		shortID = shortID[len(shortID)-6:]
+	}
+	
+	return fmt.Sprintf("%s-%s-%s-%s.md", artifact.Type, description, date, shortID)
+}
+
+// getArtifactDirectory returns the appropriate directory for an Artifact
+func (m *MarkdownIO) getArtifactDirectory(artifactType string) string {
+	switch artifactType {
+	case models.TypePlan:
+		return filepath.Join(m.baseDir, "artifacts", "plans")
+	case models.TypeProposal:
+		return filepath.Join(m.baseDir, "artifacts", "proposals")
+	case models.TypeAnalysis:
+		return filepath.Join(m.baseDir, "artifacts", "analysis")
+	case models.TypeUpdate:
+		return filepath.Join(m.baseDir, "artifacts", "updates")
+	case models.TypeDecision:
+		return filepath.Join(m.baseDir, "artifacts", "decisions")
+	default:
+		return filepath.Join(m.baseDir, "artifacts", "plans") // default to plans
+	}
+}
+
+// === Enhanced Listing Methods ===
+
+// ListWork returns all Work items from a specific schedule directory
+func (m *MarkdownIO) ListWork(schedule string) ([]*models.Work, error) {
+	dir := m.getWorkDirectory(schedule)
+	return m.listWorkFromDir(dir)
+}
+
+// ListAllWork returns all Work items from all schedule directories
+func (m *MarkdownIO) ListAllWork() ([]*models.Work, error) {
+	var allWork []*models.Work
+
+	// List from all schedule directories
+	schedules := []string{models.ScheduleNow, models.ScheduleNext, models.ScheduleLater}
+	for _, schedule := range schedules {
+		items, err := m.ListWork(schedule)
+		if err != nil {
+			continue // Directory might not exist yet
+		}
+		allWork = append(allWork, items...)
+	}
+
+	return allWork, nil
+}
+
+// listWorkFromDir reads all Work markdown files from a directory
+func (m *MarkdownIO) listWorkFromDir(dir string) ([]*models.Work, error) {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []*models.Work{}, nil
+		}
+		return nil, fmt.Errorf("failed to read directory: %w", err)
+	}
+
+	var items []*models.Work
+	for _, file := range files {
+		if !strings.HasSuffix(file.Name(), ".md") {
+			continue
+		}
+
+		filepath := filepath.Join(dir, file.Name())
+		work, err := m.ReadWork(filepath)
+		if err != nil {
+			continue // Skip files that can't be parsed
+		}
+
+		items = append(items, work)
+	}
+
+	return items, nil
+}
+
+// ListArtifacts returns all Artifacts from a specific type directory
+func (m *MarkdownIO) ListArtifacts(artifactType string) ([]*models.Artifact, error) {
+	dir := m.getArtifactDirectory(artifactType)
+	return m.listArtifactsFromDir(dir)
+}
+
+// ListAllArtifacts returns all Artifacts from all type directories
+func (m *MarkdownIO) ListAllArtifacts() ([]*models.Artifact, error) {
+	var allArtifacts []*models.Artifact
+
+	// List from all artifact type directories
+	types := []string{models.TypePlan, models.TypeProposal, models.TypeAnalysis, models.TypeUpdate, models.TypeDecision}
+	for _, artifactType := range types {
+		items, err := m.ListArtifacts(artifactType)
+		if err != nil {
+			continue // Directory might not exist yet
+		}
+		allArtifacts = append(allArtifacts, items...)
+	}
+
+	return allArtifacts, nil
+}
+
+// listArtifactsFromDir reads all Artifact markdown files from a directory
+func (m *MarkdownIO) listArtifactsFromDir(dir string) ([]*models.Artifact, error) {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []*models.Artifact{}, nil
+		}
+		return nil, fmt.Errorf("failed to read directory: %w", err)
+	}
+
+	var items []*models.Artifact
+	for _, file := range files {
+		if !strings.HasSuffix(file.Name(), ".md") {
+			continue
+		}
+
+		filepath := filepath.Join(dir, file.Name())
+		artifact, err := m.ReadArtifact(filepath)
+		if err != nil {
+			continue // Skip files that can't be parsed
+		}
+
+		items = append(items, artifact)
+	}
+
+	return items, nil
+}
+
+// === Search Methods ===
+
+// SearchWork searches for Work items containing the query
+func (m *MarkdownIO) SearchWork(query string) ([]*models.Work, error) {
+	allWork, err := m.ListAllWork()
+	if err != nil {
+		return nil, err
+	}
+
+	query = strings.ToLower(query)
+	var results []*models.Work
+	
+	for _, work := range allWork {
+		// Search in title, description, content, and tags
+		if strings.Contains(strings.ToLower(work.Title), query) ||
+			strings.Contains(strings.ToLower(work.Description), query) ||
+			strings.Contains(strings.ToLower(work.Content), query) ||
+			containsTag(work.TechnicalTags, query) {
+			results = append(results, work)
+		}
+	}
+
+	return results, nil
+}
+
+// SearchArtifacts searches for Artifacts containing the query
+func (m *MarkdownIO) SearchArtifacts(query string) ([]*models.Artifact, error) {
+	allArtifacts, err := m.ListAllArtifacts()
+	if err != nil {
+		return nil, err
+	}
+
+	query = strings.ToLower(query)
+	var results []*models.Artifact
+	
+	for _, artifact := range allArtifacts {
+		// Search in summary, content, and tags
+		if strings.Contains(strings.ToLower(artifact.Summary), query) ||
+			strings.Contains(strings.ToLower(artifact.Content), query) ||
+			containsTag(artifact.TechnicalTags, query) {
+			results = append(results, artifact)
+		}
+	}
+
+	return results, nil
 }
