@@ -117,7 +117,14 @@ func (s *ProjectScanner) GetPrimaryWorkDirectory() string {
 		return ""
 	}
 
-	// Prefer work directory in current path
+	// Prefer work directory in current directory or below
+	for _, dir := range s.workDirs {
+		if strings.HasPrefix(dir, s.currentDir) {
+			return dir
+		}
+	}
+	
+	// Next, prefer work directory in current path (parent contains current)
 	for _, dir := range s.workDirs {
 		if strings.HasPrefix(s.currentDir, filepath.Dir(dir)) {
 			return dir

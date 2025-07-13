@@ -19,6 +19,8 @@ type ViewType int
 const (
 	DashboardView ViewType = iota
 	WorkItemsView
+	TabbedWorkView
+	FancyListView
 	ReferencesView
 	FutureWorkView
 )
@@ -38,6 +40,8 @@ type App struct {
 	dashboard        *views.DashboardModel
 	workItems        *views.WorkItemsModel
 	enhancedWorkItems *views.EnhancedWorkItemsModel
+	tabbedWorkView   *views.TabbedWorkView
+	fancyListView    *views.FancyListView
 	references       *views.ReferencesModel
 	futureWork       *views.FutureWorkModel
 	width            int
@@ -46,6 +50,8 @@ type App struct {
 	sidebarWidth     int
 	useEnhanced      bool
 	syncEnabled      bool
+	useTabbedView    bool
+	useFancyList     bool
 }
 
 var (
@@ -64,22 +70,28 @@ func NewApp() *App {
 	dashboard := views.NewDashboardModel(dataClient)
 	workItems := views.NewWorkItemsModel(dataClient)
 	enhancedWorkItems := views.NewEnhancedWorkItemsModel(enhancedClient)
+	tabbedWorkView := views.NewTabbedWorkView(enhancedClient)
+	fancyListView := views.NewFancyListView(enhancedClient)
 	references := views.NewReferencesModel(dataClient)
 	futureWork := views.NewFutureWorkModel(dataClient)
 
 	app := &App{
 		dataClient:        dataClient,
 		enhancedClient:    enhancedClient,
-		currentView:       DashboardView,
+		currentView:       FancyListView, // Default to fancy list view
 		sidebar:           sidebar,
 		dashboard:         dashboard,
 		workItems:         workItems,
 		enhancedWorkItems: enhancedWorkItems,
+		tabbedWorkView:    tabbedWorkView,
+		fancyListView:     fancyListView,
 		references:        references,
 		futureWork:        futureWork,
 		sidebarWidth:      25,
 		useEnhanced:       true, // Default to enhanced view
 		syncEnabled:       true, // Enable real-time sync by default
+		useTabbedView:     false, // Disable tabbed interface
+		useFancyList:      true,  // Enable fancy list interface
 	}
 
 	// Initialize sync coordinator if enabled
@@ -114,6 +126,12 @@ func NewApp() *App {
 }
 
 func (a *App) Init() tea.Cmd {
+	if a.useFancyList {
+		return a.fancyListView.Init()
+	}
+	if a.useTabbedView {
+		return a.tabbedWorkView.Init()
+	}
 	return a.dashboard.Init()
 }
 
@@ -140,6 +158,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if a.useEnhanced {
 				cmds = append(cmds, a.enhancedWorkItems.Init())
 			}
+		case TabbedWorkView:
+			cmds = append(cmds, a.tabbedWorkView.Init())
+		case FancyListView:
+			cmds = append(cmds, a.fancyListView.Init())
 		case DashboardView:
 			cmds = append(cmds, a.dashboard.Init())
 		}
@@ -162,6 +184,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.dashboard, _ = a.dashboard.Update(contentMsg)
 		a.workItems, _ = a.workItems.Update(contentMsg)
 		a.enhancedWorkItems, _ = a.enhancedWorkItems.Update(contentMsg)
+		if model, cmd := a.tabbedWorkView.Update(msg); model != nil {
+			a.tabbedWorkView = model.(*views.TabbedWorkView)
+			_ = cmd
+		}
+		if model, cmd := a.fancyListView.Update(msg); model != nil {
+			a.fancyListView = model.(*views.FancyListView)
+			_ = cmd
+		}
 		a.references, _ = a.references.Update(contentMsg)
 		a.futureWork, _ = a.futureWork.Update(contentMsg)
 		
@@ -180,6 +210,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				cmds = append(cmds, a.workItems.Init())
 			}
+		case TabbedWorkView:
+			cmds = append(cmds, a.tabbedWorkView.Init())
+		case FancyListView:
+			cmds = append(cmds, a.fancyListView.Init())
 		case ReferencesView:
 			cmds = append(cmds, a.references.Init())
 		case FutureWorkView:
@@ -189,6 +223,19 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
+		// Handle fancy list view first if enabled to allow it to handle keys
+		if a.useFancyList {
+			// Forward directly to fancy list view, no sidebar needed
+			if model, cmd := a.fancyListView.Update(msg); model != nil {
+				a.fancyListView = model.(*views.FancyListView)
+				if cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+			}
+			return a, tea.Batch(cmds...)
+		}
+		
+		// Default app-level key handling for non-fancy-list views
 		switch {
 		case key.Matches(msg, key.NewBinding(key.WithKeys("q", "ctrl+c"))):
 			a.quitting = true
@@ -200,34 +247,59 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			
 			return a, tea.Quit
 		}
-	}
-
-	// Update sidebar first
-	var sidebarCmd tea.Cmd
-	a.sidebar, sidebarCmd = a.sidebar.Update(msg)
-	if sidebarCmd != nil {
-		cmds = append(cmds, sidebarCmd)
-	}
-
-	// Forward to current view
-	var viewCmd tea.Cmd
-	switch a.currentView {
-	case DashboardView:
-		a.dashboard, viewCmd = a.dashboard.Update(msg)
-	case WorkItemsView:
-		if a.useEnhanced {
-			a.enhancedWorkItems, viewCmd = a.enhancedWorkItems.Update(msg)
-		} else {
-			a.workItems, viewCmd = a.workItems.Update(msg)
+		
+		// Handle tabbed view if enabled (and not fancy list)
+		if a.useTabbedView {
+			// Forward directly to tabbed view, no sidebar needed
+			if model, cmd := a.tabbedWorkView.Update(msg); model != nil {
+				a.tabbedWorkView = model.(*views.TabbedWorkView)
+				if cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+			}
+			return a, tea.Batch(cmds...)
 		}
-	case ReferencesView:
-		a.references, viewCmd = a.references.Update(msg)
-	case FutureWorkView:
-		a.futureWork, viewCmd = a.futureWork.Update(msg)
 	}
-	
-	if viewCmd != nil {
-		cmds = append(cmds, viewCmd)
+
+	// Handle sidebar-based views
+	if !a.useFancyList && !a.useTabbedView {
+		// Update sidebar first
+		var sidebarCmd tea.Cmd
+		a.sidebar, sidebarCmd = a.sidebar.Update(msg)
+		if sidebarCmd != nil {
+			cmds = append(cmds, sidebarCmd)
+		}
+
+		// Forward to current view
+		var viewCmd tea.Cmd
+		switch a.currentView {
+		case DashboardView:
+			a.dashboard, viewCmd = a.dashboard.Update(msg)
+		case WorkItemsView:
+			if a.useEnhanced {
+				a.enhancedWorkItems, viewCmd = a.enhancedWorkItems.Update(msg)
+			} else {
+				a.workItems, viewCmd = a.workItems.Update(msg)
+			}
+		case TabbedWorkView:
+			if model, cmd := a.tabbedWorkView.Update(msg); model != nil {
+				a.tabbedWorkView = model.(*views.TabbedWorkView)
+				viewCmd = cmd
+			}
+		case FancyListView:
+			if model, cmd := a.fancyListView.Update(msg); model != nil {
+				a.fancyListView = model.(*views.FancyListView)
+				viewCmd = cmd
+			}
+		case ReferencesView:
+			a.references, viewCmd = a.references.Update(msg)
+		case FutureWorkView:
+			a.futureWork, viewCmd = a.futureWork.Update(msg)
+		}
+		
+		if viewCmd != nil {
+			cmds = append(cmds, viewCmd)
+		}
 	}
 
 	return a, tea.Batch(cmds...)
@@ -238,6 +310,17 @@ func (a *App) View() string {
 		return "Goodbye! 👋\n"
 	}
 
+	// Use fancy list view if enabled (full screen, no sidebar)
+	if a.useFancyList {
+		return appStyle.Render(a.fancyListView.View())
+	}
+	
+	// Use tabbed view if enabled (full screen, no sidebar)
+	if a.useTabbedView {
+		return appStyle.Render(a.tabbedWorkView.View())
+	}
+
+	// Traditional sidebar + content layout
 	// Get sidebar
 	sidebar := a.sidebar.View()
 
@@ -252,6 +335,10 @@ func (a *App) View() string {
 		} else {
 			content = a.workItems.View()
 		}
+	case TabbedWorkView:
+		content = a.tabbedWorkView.View()
+	case FancyListView:
+		content = a.fancyListView.View()
 	case ReferencesView:
 		content = a.references.View()
 	case FutureWorkView:

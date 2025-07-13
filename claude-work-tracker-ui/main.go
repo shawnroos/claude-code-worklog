@@ -12,7 +12,7 @@ func main() {
 	// Create the application
 	app := app.NewApp()
 	
-	// Create the program
+	// Create the program with alt screen for proper TUI
 	p := tea.NewProgram(app, tea.WithAltScreen())
 	
 	// Run the program
