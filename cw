@@ -1,0 +1,1 @@
+worktrees/tasks/claude-work-tracker-ui/cw
