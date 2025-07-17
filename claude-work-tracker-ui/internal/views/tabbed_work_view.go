@@ -33,6 +33,8 @@ type TabbedWorkView struct {
 	height        int
 	glamourRender *glamour.TermRenderer
 	showDetail    bool
+	showUpdates   bool
+	updatesView   UpdatesView
 	ready         bool
 	keys          KeyMap
 }
@@ -44,6 +46,7 @@ type KeyMap struct {
 	NextItem    key.Binding
 	PrevItem    key.Binding
 	ViewDetail  key.Binding
+	ViewUpdates key.Binding
 	Back        key.Binding
 	Quit        key.Binding
 }
@@ -70,6 +73,10 @@ func DefaultKeyMap() KeyMap {
 		ViewDetail: key.NewBinding(
 			key.WithKeys("enter", " "),
 			key.WithHelp("enter/space", "view detail"),
+		),
+		ViewUpdates: key.NewBinding(
+			key.WithKeys("u"),
+			key.WithHelp("u", "view updates"),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc"),
@@ -149,6 +156,8 @@ func NewTabbedWorkView(dataClient *data.EnhancedClient) *TabbedWorkView {
 		selectedItem:  0,
 		glamourRender: glamourRenderer,
 		showDetail:    false,
+		showUpdates:   false,
+		updatesView:   NewUpdatesView(),
 		keys:          DefaultKeyMap(),
 	}
 }
@@ -228,12 +237,34 @@ func (t *TabbedWorkView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.KeyMsg:
-		if t.showDetail {
+		if t.showUpdates {
+			// Handle updates view navigation
+			switch {
+			case key.Matches(msg, t.keys.Back):
+				t.showUpdates = false
+				t.updateViewportContent()
+			default:
+				var updatesCmd tea.Cmd
+				t.updatesView, updatesCmd = t.updatesView.Update(msg)
+				return t, updatesCmd
+			}
+		} else if t.showDetail {
 			// Handle detail view navigation
 			switch {
 			case key.Matches(msg, t.keys.Back):
 				t.showDetail = false
 				t.updateViewportContent()
+			case key.Matches(msg, t.keys.ViewUpdates):
+				t.showUpdates = true
+				// Load updates for current work item
+				currentWork := t.getCurrentWork()
+				if currentWork != nil {
+					t.updatesView.LoadFromWork(currentWork)
+					t.updatesView, cmd = t.updatesView.Update(tea.WindowSizeMsg{
+						Width:  t.width,
+						Height: t.height,
+					})
+				}
 			default:
 				t.viewport, cmd = t.viewport.Update(msg)
 			}
@@ -266,6 +297,11 @@ func (t *TabbedWorkView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (t *TabbedWorkView) View() string {
 	if !t.ready {
 		return "Loading..."
+	}
+
+	// Show updates view if active
+	if t.showUpdates {
+		return t.updatesView.View()
 	}
 
 	// Render tab bar and content as connected elements
@@ -564,4 +600,14 @@ func (t *TabbedWorkView) getCurrentSchedule() string {
 		return t.tabs[t.activeTab].Schedule
 	}
 	return models.ScheduleNow
+}
+
+// getCurrentWork returns the currently selected work item
+func (t *TabbedWorkView) getCurrentWork() *models.Work {
+	schedule := t.getCurrentSchedule()
+	items := t.workItems[schedule]
+	if t.selectedItem >= 0 && t.selectedItem < len(items) {
+		return items[t.selectedItem]
+	}
+	return nil
 }
