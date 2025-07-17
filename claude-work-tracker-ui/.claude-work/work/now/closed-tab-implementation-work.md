@@ -15,10 +15,10 @@ session_number: session-1752533400
 technical_tags: [ui, workflow, state-management, tabs]
 artifact_refs: []
 metadata:
-  status: active
+  status: in_progress
   priority: high
   estimated_effort: medium
-  progress_percent: 0
+  progress_percent: 60
   artifact_count: 0
   activity_score: 25.0
 ---

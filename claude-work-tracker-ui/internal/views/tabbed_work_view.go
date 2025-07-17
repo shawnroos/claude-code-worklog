@@ -139,6 +139,7 @@ func NewTabbedWorkView(dataClient *data.EnhancedClient) *TabbedWorkView {
 		{Name: "NOW", Schedule: models.ScheduleNow, Active: true},
 		{Name: "NEXT", Schedule: models.ScheduleNext, Active: false},
 		{Name: "LATER", Schedule: models.ScheduleLater, Active: false},
+		{Name: "CLOSED", Schedule: models.ScheduleClosed, Active: false},
 	}
 
 	vp := viewport.New(78, 20)

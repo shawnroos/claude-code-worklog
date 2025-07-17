@@ -93,6 +93,7 @@ const (
 	WorkStatusArchived   = "archived"    // No longer relevant
 	WorkStatusBlocked    = "blocked"     // Cannot proceed
 	WorkStatusOnHold     = "on_hold"     // Temporarily paused
+	WorkStatusCanceled   = "canceled"    // Explicitly canceled
 )
 
 // Work priority constants

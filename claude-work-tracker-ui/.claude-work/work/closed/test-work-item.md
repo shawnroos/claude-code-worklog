@@ -2,7 +2,7 @@
 id: work-test-tui-modification-1752484426
 title: Test TUI modification with Work items
 description: Testing the new TUI interface that displays Work items instead of artifacts
-schedule: now
+schedule: closed
 created_at: 2025-07-14T11:12:00Z
 updated_at: 2025-07-17T17:00:00Z
 overview_updated: 2025-07-17T17:00:00Z

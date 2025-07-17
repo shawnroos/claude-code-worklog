@@ -448,6 +448,8 @@ func (m *MarkdownIO) getWorkDirectory(schedule string) string {
 		return filepath.Join(m.baseDir, "work", "next")
 	case models.ScheduleLater:
 		return filepath.Join(m.baseDir, "work", "later")
+	case models.ScheduleClosed:
+		return filepath.Join(m.baseDir, "work", "closed")
 	default:
 		return filepath.Join(m.baseDir, "work", "unscheduled")
 	}
@@ -614,7 +616,7 @@ func (m *MarkdownIO) ListAllWork() ([]*models.Work, error) {
 	var allWork []*models.Work
 
 	// List from all schedule directories
-	schedules := []string{models.ScheduleNow, models.ScheduleNext, models.ScheduleLater}
+	schedules := []string{models.ScheduleNow, models.ScheduleNext, models.ScheduleLater, models.ScheduleClosed}
 	for _, schedule := range schedules {
 		items, err := m.ListWork(schedule)
 		if err != nil {
