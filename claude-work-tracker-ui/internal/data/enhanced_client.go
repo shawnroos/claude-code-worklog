@@ -326,28 +326,147 @@ func (c *EnhancedClient) GetAllWork() ([]*models.Work, error) {
 	return c.markdownIO.ListAllWork()
 }
 
-// GetWorkBySchedule returns Work items filtered by schedule (NOW/NEXT/LATER)
+// GetWorkBySchedule returns Work items filtered by schedule (NOW/NEXT/LATER) from ALL project directories
 func (c *EnhancedClient) GetWorkBySchedule(schedule string) ([]*models.Work, error) {
+	// Use project-wide scanning by default
+	return c.GetWorkByScheduleProjectWide(schedule)
+}
+
+// GetWorkByScheduleProjectWide returns Work items from ALL project directories
+func (c *EnhancedClient) GetWorkByScheduleProjectWide(schedule string) ([]*models.Work, error) {
 	if !c.useHierarchy {
 		return []*models.Work{}, nil
 	}
-	return c.markdownIO.ListWork(strings.ToLower(schedule))
+	
+	var allWork []*models.Work
+	workDirs := c.Client.scanner.GetAllWorkDirectories()
+	
+	// Aggregate from all discovered .claude-work directories
+	for _, workDirInfo := range workDirs {
+		// Create a temporary MarkdownIO for each directory
+		tempIO := NewMarkdownIO(workDirInfo.Path)
+		
+		items, err := tempIO.ListWork(strings.ToLower(schedule))
+		if err != nil {
+			continue // Skip directories with errors
+		}
+		
+		// Add source context to each work item
+		for _, item := range items {
+			// Store the source directory information
+			if item.GitContext.WorkingDirectory == "" {
+				item.GitContext.WorkingDirectory = workDirInfo.ParentDir
+			}
+			if item.GitContext.Worktree == "" && workDirInfo.RelativePath != "Project Root" {
+				item.GitContext.Worktree = workDirInfo.RelativePath
+			}
+			// Add a custom field to track source
+			item.SourceDirectory = workDirInfo.RelativePath
+			item.SourcePath = workDirInfo.Path
+		}
+		
+		allWork = append(allWork, items...)
+	}
+	
+	// Sort by priority and updated time
+	sort.Slice(allWork, func(i, j int) bool {
+		// First by priority
+		if allWork[i].Metadata.Priority != allWork[j].Metadata.Priority {
+			return priorityOrder(allWork[i].Metadata.Priority) < priorityOrder(allWork[j].Metadata.Priority)
+		}
+		// Then by updated time (newest first)
+		return allWork[i].UpdatedAt.After(allWork[j].UpdatedAt)
+	})
+	
+	return allWork, nil
 }
 
-// GetAllArtifacts returns all Artifacts from the hierarchical system
+// priorityOrder returns numeric order for priority sorting
+func priorityOrder(priority string) int {
+	switch priority {
+	case models.WorkPriorityCritical:
+		return 0
+	case models.WorkPriorityHigh:
+		return 1
+	case models.WorkPriorityMedium:
+		return 2
+	case models.WorkPriorityLow:
+		return 3
+	default:
+		return 4
+	}
+}
+
+// GetAllArtifacts returns all Artifacts from ALL project directories
 func (c *EnhancedClient) GetAllArtifacts() ([]*models.Artifact, error) {
 	if !c.useHierarchy {
 		return []*models.Artifact{}, nil
 	}
-	return c.markdownIO.ListAllArtifacts()
+	
+	var allArtifacts []*models.Artifact
+	workDirs := c.Client.scanner.GetAllWorkDirectories()
+	
+	// Aggregate artifacts from all discovered .claude-work directories
+	for _, workDirInfo := range workDirs {
+		// Create a temporary MarkdownIO for each directory
+		tempIO := NewMarkdownIO(workDirInfo.Path)
+		
+		artifacts, err := tempIO.ListAllArtifacts()
+		if err != nil {
+			continue // Skip directories with errors
+		}
+		
+		// Add source context to each artifact
+		for _, artifact := range artifacts {
+			// Store the source directory information
+			if artifact.GitContext.WorkingDirectory == "" {
+				artifact.GitContext.WorkingDirectory = workDirInfo.ParentDir
+			}
+			if artifact.GitContext.Worktree == "" && workDirInfo.RelativePath != "Project Root" {
+				artifact.GitContext.Worktree = workDirInfo.RelativePath
+			}
+		}
+		
+		allArtifacts = append(allArtifacts, artifacts...)
+	}
+	
+	return allArtifacts, nil
 }
 
-// GetArtifactsByType returns Artifacts filtered by type
+// GetArtifactsByType returns Artifacts filtered by type from ALL project directories
 func (c *EnhancedClient) GetArtifactsByType(artifactType string) ([]*models.Artifact, error) {
 	if !c.useHierarchy {
 		return []*models.Artifact{}, nil
 	}
-	return c.markdownIO.ListArtifacts(artifactType)
+	
+	var allArtifacts []*models.Artifact
+	workDirs := c.Client.scanner.GetAllWorkDirectories()
+	
+	// Aggregate artifacts from all discovered .claude-work directories
+	for _, workDirInfo := range workDirs {
+		// Create a temporary MarkdownIO for each directory
+		tempIO := NewMarkdownIO(workDirInfo.Path)
+		
+		artifacts, err := tempIO.ListArtifacts(artifactType)
+		if err != nil {
+			continue // Skip directories with errors
+		}
+		
+		// Add source context to each artifact
+		for _, artifact := range artifacts {
+			// Store the source directory information
+			if artifact.GitContext.WorkingDirectory == "" {
+				artifact.GitContext.WorkingDirectory = workDirInfo.ParentDir
+			}
+			if artifact.GitContext.Worktree == "" && workDirInfo.RelativePath != "Project Root" {
+				artifact.GitContext.Worktree = workDirInfo.RelativePath
+			}
+		}
+		
+		allArtifacts = append(allArtifacts, artifacts...)
+	}
+	
+	return allArtifacts, nil
 }
 
 // GetAllGroups returns all Groups

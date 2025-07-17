@@ -40,6 +40,10 @@ type Work struct {
 	// Derived fields  
 	Filename      string `yaml:"-" json:"filename"`
 	Filepath      string `yaml:"-" json:"filepath"`
+	
+	// Source tracking for multi-directory projects
+	SourceDirectory string `yaml:"-" json:"source_directory,omitempty"` // Relative path from project root
+	SourcePath      string `yaml:"-" json:"source_path,omitempty"`      // Full path to .claude-work directory
 }
 
 // WorkMetadata contains work-specific metadata and status

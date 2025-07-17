@@ -15,10 +15,10 @@ session_number: session-1752529800
 technical_tags: [scanning, aggregation, project-wide, filesystem]
 artifact_refs: []
 metadata:
-  status: active
+  status: in_progress
   priority: high
   estimated_effort: medium
-  progress_percent: 0
+  progress_percent: 40
   artifact_count: 0
   activity_score: 20.0
 ---
