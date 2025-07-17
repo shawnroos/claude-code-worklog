@@ -42,13 +42,21 @@ func NewClient() *Client {
 		cwd = "/"
 	}
 
-	// Use project scanner to find work directories
+	// Always use the project root .claude-work directory for global project state
+	// This ensures the TUI shows the same view regardless of where it's run from
 	scanner := NewProjectScanner()
-	primaryWorkDir := scanner.GetPrimaryWorkDirectory()
+	projectRoot := scanner.GetProjectRoot()
 	
-	// Fallback to current directory if no work directories found
-	if primaryWorkDir == "" {
-		primaryWorkDir = filepath.Join(cwd, ".claude-work")
+	// Primary work directory is always at project root for global state
+	primaryWorkDir := filepath.Join(projectRoot, ".claude-work")
+	
+	// Create the directory if it doesn't exist
+	if err := os.MkdirAll(primaryWorkDir, 0755); err != nil {
+		// Fallback to scanner's primary directory if we can't create at project root
+		primaryWorkDir = scanner.GetPrimaryWorkDirectory()
+		if primaryWorkDir == "" {
+			primaryWorkDir = filepath.Join(projectRoot, ".claude-work")
+		}
 	}
 
 	baseDir := filepath.Join(homeDir, ".claude")
@@ -70,6 +78,11 @@ func NewClient() *Client {
 	}
 	
 	return client
+}
+
+// GetLocalWorkDir returns the local work directory path
+func (c *Client) GetLocalWorkDir() string {
+	return c.localWorkDir
 }
 
 // GetCurrentWorkState returns the current work state

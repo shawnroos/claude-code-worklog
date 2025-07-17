@@ -2,7 +2,6 @@ package app
 
 import (
 	"log"
-	"path/filepath"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -96,11 +95,8 @@ func NewApp() *App {
 
 	// Initialize sync coordinator if enabled
 	if app.syncEnabled {
-		// Determine watch directory - look for .claude-work directory
-		watchDir := ".claude-work"
-		if absPath, err := filepath.Abs(watchDir); err == nil {
-			watchDir = absPath
-		}
+		// Use the enhanced client's work directory (which is now always at project root)
+		watchDir := enhancedClient.GetLocalWorkDir()
 
 		syncCoordinator, err := sync.NewSyncCoordinator(watchDir, enhancedClient)
 		if err != nil {

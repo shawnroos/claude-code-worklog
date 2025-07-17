@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
@@ -14,16 +16,17 @@ import (
 
 	"claude-work-tracker-ui/internal/data"
 	"claude-work-tracker-ui/internal/models"
+	"claude-work-tracker-ui/internal/renderer"
 )
 
-// WorkItem implements list.Item interface
+// WorkItem implements list.Item interface for Work items
 type WorkItem struct {
-	*models.MarkdownWorkItem
+	*models.Work
 }
 
 
 func (w WorkItem) FilterValue() string {
-	return w.Summary
+	return w.Title
 }
 
 // Custom item delegate for fancy list rendering
@@ -48,12 +51,12 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		return
 	}
 
-	item := workItem.MarkdownWorkItem
+	item := workItem.Work
 	isSelected := index == m.Index()
 
 	// Base styles
 	var (
-		typeStyle = lipgloss.NewStyle().
+		statusStyle = lipgloss.NewStyle().
 				Background(lipgloss.Color("242")).
 				Foreground(lipgloss.Color("250")).
 				Bold(true).
@@ -72,7 +75,7 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 				Foreground(lipgloss.Color("240")).
 				PaddingTop(1)
 		
-		selectedTypeStyle = typeStyle.Copy().
+		selectedStatusStyle = statusStyle.Copy().
 				Background(lipgloss.Color("62")).
 				Foreground(lipgloss.Color("15"))
 		
@@ -88,31 +91,78 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 
 	// Apply selected styles
 	if isSelected {
-		typeStyle = selectedTypeStyle
+		statusStyle = selectedStatusStyle
 		titleStyle = selectedTitleStyle
 		overviewStyle = selectedOverviewStyle
 		metadataStyle = selectedMetadataStyle
 	}
 
-	// Type badge with inverted background
-	typeBadge := typeStyle.Render(strings.ToUpper(item.Type))
+	// Status/priority badge with inverted background
+	var badgeText string
+	switch item.Metadata.Status {
+	case models.WorkStatusInProgress:
+		badgeText = "IN_PROGRESS"
+	case models.WorkStatusBlocked:
+		badgeText = "BLOCKED"
+	case models.WorkStatusCompleted:
+		badgeText = "COMPLETED"
+	default:
+		badgeText = strings.ToUpper(item.Metadata.Priority)
+		if badgeText == "" {
+			badgeText = "WORK"
+		}
+	}
 	
-	// Title line with type badge + headline
-	titleLine := lipgloss.JoinHorizontal(lipgloss.Center, typeBadge, " ", titleStyle.Render(item.Summary))
+	statusBadge := statusStyle.Render(badgeText)
+	
+	// Title line with status badge + title
+	titleLine := lipgloss.JoinHorizontal(lipgloss.Center, statusBadge, " ", titleStyle.Render(item.Title))
 
 	content := titleLine
 
-	// Always show overview if available (first 2 lines only)
+	// Show description with task summary for better overview
+	var overviewText string
+	if item.Description != "" {
+		overviewText = item.Description
+	}
+	
+	// Add task summary from content if available
 	if item.Content != "" {
-		overview := extractFirstTwoLines(item.Content)
-		if overview != "" {
-			overviewText := overviewStyle.Render(overview)
-			content = lipgloss.JoinVertical(lipgloss.Left, content, overviewText)
+		// Use a simple processor instance for display (performance optimization)
+		processor := renderer.NewMarkdownProcessor("")
+		taskSummary := processor.GetTaskSummary(item.Content)
+		if taskSummary != "" {
+			if overviewText != "" {
+				overviewText = overviewText + "\n" + taskSummary
+			} else {
+				overviewText = taskSummary
+			}
 		}
+	}
+	
+	if overviewText != "" {
+		// Limit overview length for list display
+		if len(overviewText) > 120 {
+			overviewText = overviewText[:120] + "..."
+		}
+		renderedOverview := overviewStyle.Render(overviewText)
+		content = lipgloss.JoinVertical(lipgloss.Left, content, renderedOverview)
 	}
 
 	// Add metadata line
 	var metaParts []string
+	
+	// Add progress if available
+	if item.Metadata.ProgressPercent > 0 {
+		metaParts = append(metaParts, fmt.Sprintf("progress:%d%%", item.Metadata.ProgressPercent))
+	}
+	
+	// Add artifact count
+	if item.Metadata.ArtifactCount > 0 {
+		metaParts = append(metaParts, fmt.Sprintf("artifacts:%d", item.Metadata.ArtifactCount))
+	}
+	
+	// Add technical tags
 	if len(item.TechnicalTags) > 0 {
 		metaParts = append(metaParts, strings.Join(item.TechnicalTags, ", "))
 	}
@@ -130,8 +180,10 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		metaParts = append(metaParts, "wt:"+worktreeName)
 	}
 	
-	if item.CreatedAt.Year() > 1 {
-		metaParts = append(metaParts, item.CreatedAt.Format("Jan 2"))
+	// Show last update time
+	lastUpdate := item.GetLastUpdateTime()
+	if lastUpdate.Year() > 1 {
+		metaParts = append(metaParts, "updated: " + formatRelativeTime(lastUpdate))
 	}
 	
 	if len(metaParts) > 0 {
@@ -145,33 +197,53 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 
 // FancyListView provides a list-based interface for work items
 type FancyListView struct {
-	dataClient    *data.EnhancedClient
-	list          list.Model
-	tabs          []Tab
-	activeTab     int
-	workItems     map[string][]*models.MarkdownWorkItem
-	glamour       *glamour.TermRenderer
-	showDetail    bool
-	showFullPost  bool
-	selectedItem  *models.MarkdownWorkItem
-	viewport      viewport.Model // For scrollable content
-	width         int
-	height        int
-	ready         bool
-	keys          FancyKeyMap
-	renderCache   map[string]string // Cache rendered markdown
-	lastWidth     int               // Track width changes for cache invalidation
+	dataClient       *data.EnhancedClient
+	list             list.Model
+	tabs             []Tab
+	activeTab        int
+	workItems        map[string][]*models.Work
+	glamour          *glamour.TermRenderer
+	markdownProcessor *renderer.MarkdownProcessor
+	showDetail       bool
+	showFullPost     bool
+	selectedItem     *models.Work
+	viewport         viewport.Model   // For scrollable content
+	width            int
+	height           int
+	ready            bool
+	keys             FancyKeyMap
+	renderCache      map[string]string // Cache rendered markdown
+	embeddedCache    map[string]string // Cache embedded content
+	embeddingStates  map[string]embeddingState // Track embedding loading states
+	lastWidth        int               // Track width changes for cache invalidation
+}
+
+// embeddingState tracks the state of embedded content
+type embeddingState struct {
+	loading  bool
+	loaded   bool
+	content  string
+	workID   string
+	spinner  spinner.Model
+}
+
+// embeddingLoadedMsg is sent when embedded content finishes loading
+type embeddingLoadedMsg struct {
+	workID    string
+	reference string
+	content   string
+	err       error
 }
 
 type FancyKeyMap struct {
-	NextTab      key.Binding
-	PrevTab      key.Binding
-	ToggleDetail key.Binding
-	ViewFullPost key.Binding
-	Back         key.Binding
-	NextItem     key.Binding
-	PrevItem     key.Binding
-	Quit         key.Binding
+	NextTab       key.Binding
+	PrevTab       key.Binding
+	ToggleDetail  key.Binding
+	ViewFullPost  key.Binding
+	Back          key.Binding
+	NextItem      key.Binding
+	PrevItem      key.Binding
+	Quit          key.Binding
 }
 
 func DefaultFancyKeyMap() FancyKeyMap {
@@ -286,20 +358,27 @@ func NewFancyListView(dataClient *data.EnhancedClient) *FancyListView {
 		),
 	}
 
+
+	// Initialize markdown processor with the data client's work directory
+	markdownProcessor := renderer.NewMarkdownProcessor(dataClient.GetLocalWorkDir())
+
 	return &FancyListView{
-		dataClient:   dataClient,
-		list:         workList,
-		tabs:         tabs,
-		activeTab:    0,
-		workItems:    make(map[string][]*models.MarkdownWorkItem),
-		glamour:      glamourRenderer,
-		showDetail:   true,
-		showFullPost: false,
-		selectedItem: nil,
-		viewport:     vp,
-		keys:         DefaultFancyKeyMap(),
-		renderCache:  make(map[string]string),
-		lastWidth:    0,
+		dataClient:        dataClient,
+		list:              workList,
+		tabs:              tabs,
+		activeTab:         0,
+		workItems:         make(map[string][]*models.Work),
+		glamour:           glamourRenderer,
+		markdownProcessor: markdownProcessor,
+		showDetail:        true,
+		showFullPost:      false,
+		selectedItem:      nil,
+		viewport:          vp,
+		keys:              DefaultFancyKeyMap(),
+		renderCache:       make(map[string]string),
+		embeddedCache:     make(map[string]string),
+		embeddingStates:   make(map[string]embeddingState),
+		lastWidth:         0,
 	}
 }
 
@@ -317,10 +396,14 @@ func (f *FancyListView) loadWorkItems() tea.Cmd {
 
 func (f *FancyListView) loadScheduleItems(schedule string) tea.Cmd {
 	return func() tea.Msg {
-		items, err := f.dataClient.GetWorkItemsBySchedule(schedule)
+		items, err := f.dataClient.GetWorkBySchedule(schedule)
 		if err != nil {
+			// Debug: log the error
+			// log.Printf("Error loading %s items: %v", schedule, err)
 			return errMsg{err: err}
 		}
+		// Debug: log successful load
+		// log.Printf("Loaded %d items for %s", len(items), schedule)
 		return scheduleItemsLoadedMsg{schedule: schedule, items: items}
 	}
 }
@@ -330,50 +413,65 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		// Only update if size actually changed
-		if f.width != msg.Width || f.height != msg.Height {
-			f.width = msg.Width
-			f.height = msg.Height
+		// Always update dimensions
+		f.width = msg.Width
+		f.height = msg.Height
+		
+		if f.showFullPost {
+			// Update viewport size for full post or embedded view with proper margins
+			viewportHeight := f.height - 6 // Reserve space for pagination, help, and margins
+			viewportWidth := f.width - 4   // Reserve space for side margins
 			
+			// Ensure minimum sizes
+			if viewportHeight < 5 {
+				viewportHeight = 5
+			}
+			if viewportWidth < 20 {
+				viewportWidth = 20
+			}
+			
+			// Update viewport dimensions immediately
 			if f.showFullPost {
-				// Update viewport size for full post view
-				viewportHeight := f.height - 4 // Reserve space for pagination and help
-				if viewportHeight < 5 {
-					viewportHeight = 5
-				}
-				f.viewport.Width = f.width
+				f.viewport.Width = viewportWidth
 				f.viewport.Height = viewportHeight
 				
-				// Only re-render if width changed significantly (avoid constant re-rendering)
-				if abs(f.width - f.lastWidth) > 10 && f.selectedItem != nil {
+				// Force re-render content if we have a selected item and width changed significantly
+				if f.selectedItem != nil && abs(f.width - f.lastWidth) > 5 {
+					// Clear cache to force re-render with new width
+					f.renderCache = make(map[string]string)
+					f.embeddingStates = make(map[string]embeddingState) // Clear embedding states on resize
 					f.updateViewportContent()
 				}
-			} else {
-				// Calculate available space for list view
-				tabHeight := 3      // Space for tabs and borders
-				helpHeight := 2     // Space for help text
-				borderHeight := 2   // Space for list borders
-				
-				listWidth := msg.Width - 8   // Conservative width margin
-				listHeight := msg.Height - tabHeight - helpHeight - borderHeight - 2 // Extra buffer
-				
-				if listWidth < 10 {
-					listWidth = 10
-				}
-				if listHeight < 5 {
-					listHeight = 5
-				}
-				
-				f.list.SetSize(listWidth, listHeight)
 			}
+		} else {
+			// Calculate available space for list view with better margins
+			tabHeight := 3      // Space for tabs and borders
+			helpHeight := 2     // Space for help text
+			borderHeight := 2   // Space for list borders
+			
+			listWidth := msg.Width - 6   // Better margin calculation
+			listHeight := msg.Height - tabHeight - helpHeight - borderHeight - 1
+			
+			// Ensure minimum sizes
+			if listWidth < 20 {
+				listWidth = 20
+			}
+			if listHeight < 5 {
+				listHeight = 5
+			}
+			
+			f.list.SetSize(listWidth, listHeight)
 		}
+		
+		// Update last width for cache invalidation
+		f.lastWidth = f.width
 		
 		if !f.ready {
 			f.ready = true
 			// Load data synchronously when window size is set
 			schedules := []string{models.ScheduleNow, models.ScheduleNext, models.ScheduleLater}
 			for _, schedule := range schedules {
-				if items, err := f.dataClient.GetWorkItemsBySchedule(schedule); err == nil {
+				if items, err := f.dataClient.GetWorkBySchedule(schedule); err == nil {
 					f.workItems[schedule] = items
 				}
 			}
@@ -388,6 +486,29 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			f.updateListItems()
 		} else if msg.schedule == f.getCurrentSchedule() {
 			f.updateListItems()
+		}
+
+	case embeddingLoadedMsg:
+		// Handle async embedding content loading with spinners
+		if f.selectedItem != nil && f.selectedItem.ID == msg.workID {
+			// Update the embedding state
+			if state, exists := f.embeddingStates[msg.reference]; exists {
+				state.loaded = true
+				state.loading = false
+				state.content = msg.content
+				f.embeddingStates[msg.reference] = state
+			}
+			
+			// Store the loaded content in cache
+			if msg.content != "" {
+				f.embeddedCache[msg.reference] = msg.content
+			}
+			
+			// Clear render cache to force regeneration
+			f.renderCache = make(map[string]string)
+			
+			// Regenerate viewport content with the new embedding
+			f.updateViewportContentWithEmbeddings()
 		}
 
 	case tea.KeyMsg:
@@ -427,9 +548,14 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, f.keys.ViewFullPost):
 				if selectedItem := f.list.SelectedItem(); selectedItem != nil {
 					if workItem, ok := selectedItem.(WorkItem); ok {
-						f.selectedItem = workItem.MarkdownWorkItem
+						f.selectedItem = workItem.Work
 						f.showFullPost = true
 						f.updateViewportContent() // Load content into viewport
+						
+						// Auto-start loading embeddings if the item has them
+						if f.hasEmbeddings(workItem.Work) {
+							return f, f.startAutoEmbeddingLoad()
+						}
 					}
 				}
 			default:
@@ -437,6 +563,26 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				f.list, cmd = f.list.Update(msg)
 			}
 		}
+	}
+
+	// Update spinners for loading embeddings
+	var spinnerCmds []tea.Cmd
+	for ref, state := range f.embeddingStates {
+		if state.loading {
+			var spinnerCmd tea.Cmd
+			state.spinner, spinnerCmd = state.spinner.Update(msg)
+			f.embeddingStates[ref] = state
+			if spinnerCmd != nil {
+				spinnerCmds = append(spinnerCmds, spinnerCmd)
+			}
+		}
+	}
+	
+	if len(spinnerCmds) > 0 {
+		if cmd != nil {
+			spinnerCmds = append(spinnerCmds, cmd)
+		}
+		return f, tea.Batch(spinnerCmds...)
 	}
 
 	return f, cmd
@@ -450,6 +596,7 @@ func (f *FancyListView) View() string {
 	if f.showFullPost && f.selectedItem != nil {
 		return f.renderFullPost()
 	}
+
 
 	// Render connected tab bar and list
 	tabBar := f.renderConnectedTabBar()
@@ -757,31 +904,86 @@ func (f *FancyListView) updateViewportContent() {
 	}
 	cacheKey := fmt.Sprintf("%s_%d", item.ID, glamourWidth)
 
-	// Check cache first
+	// Check cache first, but skip cache if embeddings are loading for this item
+	hasLoadingEmbeddings := false
+	for _, state := range f.embeddingStates {
+		if state.workID == item.ID && state.loading {
+			hasLoadingEmbeddings = true
+			break
+		}
+	}
+	
 	renderedContent, exists := f.renderCache[cacheKey]
-	if !exists {
-		if item.Content != "" {
-			// Only render if not in cache
-			renderer, err := glamour.NewTermRenderer(
-				glamour.WithAutoStyle(),
-				glamour.WithWordWrap(glamourWidth),
-			)
+	if !exists || hasLoadingEmbeddings {
+		// For Work items, we combine Description and Content
+		var fullContent string
+		if item.Description != "" {
+			fullContent = "# " + item.Title + "\n\n" + item.Description
+			if item.Content != "" {
+				fullContent = fullContent + "\n\n" + item.Content
+			}
+		} else if item.Content != "" {
+			fullContent = "# " + item.Title + "\n\n" + item.Content
+		} else {
+			fullContent = "# " + item.Title + "\n\nNo detailed content available."
+		}
+		
+		if fullContent != "" {
+			var processedContent string
+			
+			if hasLoadingEmbeddings {
+				// Collect loaded embeddings and loading states for live rendering
+				loadedEmbeddings := make(map[string]string)
+				loadingStates := make(map[string]string)
+				
+				for ref, state := range f.embeddingStates {
+					if state.workID == item.ID {
+						if state.loaded {
+							loadedEmbeddings[ref] = state.content
+						} else if state.loading {
+							loadingStates[ref] = state.spinner.View()
+						}
+					}
+				}
+				
+				// Use async processing to show loading states
+				processedContent = f.markdownProcessor.ProcessWithAsyncEmbeddings(fullContent, loadedEmbeddings, loadingStates)
+			} else {
+				// Use lightweight processing for initial fast rendering
+				processedContent = f.markdownProcessor.ProcessForLightRendering(fullContent)
+			}
+			
+			// Render with Glamour using cached renderer if possible
+			var renderer *glamour.TermRenderer
+			var err error
+			
+			// Use existing glamour renderer if available and width matches
+			if f.glamour != nil {
+				renderer = f.glamour
+			} else {
+				renderer, err = glamour.NewTermRenderer(
+					glamour.WithAutoStyle(),
+					glamour.WithWordWrap(glamourWidth),
+				)
+			}
 			
 			if err == nil {
-				if rendered, err := renderer.Render(item.Content); err == nil {
+				if rendered, err := renderer.Render(processedContent); err == nil {
 					renderedContent = rendered
 				} else {
-					renderedContent = item.Content // Fallback
+					renderedContent = processedContent // Fallback to processed content
 				}
 			} else {
-				renderedContent = item.Content // Fallback
+				renderedContent = processedContent // Fallback to processed content
 			}
 		} else {
 			renderedContent = "No content available"
 		}
 		
-		// Cache the result
-		f.renderCache[cacheKey] = renderedContent
+		// Cache the result only if we're not loading embeddings
+		if !hasLoadingEmbeddings {
+			f.renderCache[cacheKey] = renderedContent
+		}
 	}
 
 	// Set content in viewport (no truncation - full scrollable content)
@@ -867,6 +1069,52 @@ func abs(x int) int {
 	return x
 }
 
+// formatRelativeTime formats a time as a relative string (e.g., "2h ago", "3d ago")
+func formatRelativeTime(t time.Time) string {
+	duration := time.Since(t)
+	
+	switch {
+	case duration < time.Minute:
+		return "just now"
+	case duration < time.Hour:
+		minutes := int(duration.Minutes())
+		if minutes == 1 {
+			return "1m ago"
+		}
+		return fmt.Sprintf("%dm ago", minutes)
+	case duration < 24*time.Hour:
+		hours := int(duration.Hours())
+		if hours == 1 {
+			return "1h ago"
+		}
+		return fmt.Sprintf("%dh ago", hours)
+	case duration < 7*24*time.Hour:
+		days := int(duration.Hours() / 24)
+		if days == 1 {
+			return "1d ago"
+		}
+		return fmt.Sprintf("%dd ago", days)
+	case duration < 30*24*time.Hour:
+		weeks := int(duration.Hours() / (24 * 7))
+		if weeks == 1 {
+			return "1w ago"
+		}
+		return fmt.Sprintf("%dw ago", weeks)
+	case duration < 365*24*time.Hour:
+		months := int(duration.Hours() / (24 * 30))
+		if months == 1 {
+			return "1mo ago"
+		}
+		return fmt.Sprintf("%dmo ago", months)
+	default:
+		years := int(duration.Hours() / (24 * 365))
+		if years == 1 {
+			return "1y ago"
+		}
+		return fmt.Sprintf("%dy ago", years)
+	}
+}
+
 func extractOverview(content string) string {
 	lines := strings.Split(content, "\n")
 	var overview []string
@@ -908,4 +1156,148 @@ func extractOverview(content string) string {
 	}
 	
 	return result
+}
+
+// hasEmbeddings checks if a Work item contains embedded content references
+func (f *FancyListView) hasEmbeddings(work *models.Work) bool {
+	content := work.Content
+	if content == "" {
+		content = work.Description
+	}
+	hasEmbeds := strings.Contains(content, "![[")
+	// fmt.Printf("DEBUG hasEmbeddings: work=%s, contentLen=%d, hasEmbeds=%t\n", work.Title, len(content), hasEmbeds)
+	return hasEmbeds
+}
+
+// startAutoEmbeddingLoad automatically starts loading embeddings with spinners
+func (f *FancyListView) startAutoEmbeddingLoad() tea.Cmd {
+	if f.selectedItem == nil {
+		return nil
+	}
+	
+	// Extract embedding references from the work item content
+	content := f.selectedItem.Content
+	if content == "" {
+		content = f.selectedItem.Description
+	}
+	
+	// Debug: Check what content we're working with
+	// fmt.Printf("DEBUG: Content length: %d, Has embedding: %t\n", len(content), strings.Contains(content, "![["))
+	
+	references := f.markdownProcessor.ExtractEmbeddingReferences(content)
+	// fmt.Printf("DEBUG: Found %d embedding references: %v\n", len(references), references)
+	if len(references) == 0 {
+		return nil
+	}
+	
+	// Start loading all embeddings with spinners
+	var cmds []tea.Cmd
+	for _, ref := range references {
+		// Skip if already loaded
+		if state, exists := f.embeddingStates[ref]; exists && (state.loaded || state.loading) {
+			continue
+		}
+		
+		// Create and start spinner
+		s := spinner.New()
+		s.Spinner = spinner.Dot
+		s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+		
+		// Mark as loading with spinner
+		f.embeddingStates[ref] = embeddingState{
+			loading: true,
+			loaded:  false,
+			workID:  f.selectedItem.ID,
+			spinner: s,
+		}
+		
+		// Create async loading command
+		cmds = append(cmds, s.Tick)
+		cmds = append(cmds, f.loadSingleEmbedding(f.selectedItem.ID, ref))
+	}
+	
+	// Clear render cache to show loading state
+	f.renderCache = make(map[string]string)
+	
+	return tea.Batch(cmds...)
+}
+
+// loadSingleEmbedding loads a single embedding asynchronously
+func (f *FancyListView) loadSingleEmbedding(workID, reference string) tea.Cmd {
+	return func() tea.Msg {
+		// Add a small delay to show the spinner
+		time.Sleep(100 * time.Millisecond)
+		content := f.markdownProcessor.ResolveReference(reference)
+		return embeddingLoadedMsg{
+			workID:    workID,
+			reference: reference,
+			content:   content,
+			err:       nil,
+		}
+	}
+}
+
+// updateViewportContentWithEmbeddings updates viewport content with loaded embeddings
+func (f *FancyListView) updateViewportContentWithEmbeddings() {
+	if f.selectedItem == nil {
+		return
+	}
+	
+	item := f.selectedItem
+	
+	// Generate cache key including embedding state
+	glamourWidth := f.viewport.Width - 4
+	if glamourWidth < 20 {
+		glamourWidth = 20
+	}
+	
+	// Create content with loaded embeddings
+	var fullContent string
+	if item.Description != "" {
+		fullContent = "# " + item.Title + "\n\n" + item.Description
+		if item.Content != "" {
+			fullContent = fullContent + "\n\n" + item.Content
+		}
+	} else if item.Content != "" {
+		fullContent = "# " + item.Title + "\n\n" + item.Content
+	} else {
+		fullContent = "# " + item.Title + "\n\nNo detailed content available."
+	}
+	
+	// Collect loaded embeddings and loading states
+	loadedEmbeddings := make(map[string]string)
+	loadingStates := make(map[string]string)
+	
+	for ref, state := range f.embeddingStates {
+		if state.workID == item.ID {
+			if state.loaded {
+				loadedEmbeddings[ref] = state.content
+			} else if state.loading {
+				loadingStates[ref] = state.spinner.View()
+			}
+		}
+	}
+	
+	// Process content with loaded embeddings and loading spinners
+	processedContent := f.markdownProcessor.ProcessWithAsyncEmbeddings(fullContent, loadedEmbeddings, loadingStates)
+	
+	// Render with Glamour
+	renderer, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(glamourWidth),
+	)
+	
+	var renderedContent string
+	if err == nil {
+		if rendered, err := renderer.Render(processedContent); err == nil {
+			renderedContent = rendered
+		} else {
+			renderedContent = processedContent
+		}
+	} else {
+		renderedContent = processedContent
+	}
+	
+	// Update viewport content
+	f.viewport.SetContent(renderedContent)
 }

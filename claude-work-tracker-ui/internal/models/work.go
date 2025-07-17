@@ -30,6 +30,10 @@ type Work struct {
 	// Work-specific metadata
 	Metadata      WorkMetadata `yaml:"metadata" json:"metadata"`
 	
+	// Enhanced structure fields
+	OverviewUpdated *time.Time `yaml:"overview_updated,omitempty" json:"overview_updated,omitempty"`
+	UpdatesRef      string     `yaml:"updates_ref,omitempty" json:"updates_ref,omitempty"`
+	
 	// Content is the markdown body after frontmatter
 	Content       string `yaml:"-" json:"content"`
 	
@@ -303,6 +307,23 @@ func (w *Work) CalculateActivityScore() float64 {
 	
 	w.Metadata.ActivityScore = score
 	return score
+}
+
+// GetLastUpdateTime returns the most recent update time including artifact updates
+func (w *Work) GetLastUpdateTime() time.Time {
+	lastUpdate := w.UpdatedAt
+	
+	// Check if LastActivityAt is more recent
+	if w.Metadata.LastActivityAt != nil && w.Metadata.LastActivityAt.After(lastUpdate) {
+		lastUpdate = *w.Metadata.LastActivityAt
+	}
+	
+	// Check if LastArtifactAdded is more recent
+	if w.Metadata.LastArtifactAdded != nil && w.Metadata.LastArtifactAdded.After(lastUpdate) {
+		lastUpdate = *w.Metadata.LastArtifactAdded
+	}
+	
+	return lastUpdate
 }
 
 // ShouldDecay returns true if this work should be flagged for decay

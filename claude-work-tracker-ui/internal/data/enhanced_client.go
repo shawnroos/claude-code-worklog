@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"claude-work-tracker-ui/internal/models"
+	"claude-work-tracker-ui/internal/parser"
 )
 
 // EnhancedClient provides access to work tracker data with hierarchical Work + Artifacts support
@@ -16,6 +17,8 @@ type EnhancedClient struct {
 	associationManager    *AssociationManager
 	groupManager          *GroupManager
 	lifecycleManager      *LifecycleManager
+	taskParser            *parser.TaskParser
+	updatesManager        *UpdatesManager
 	useMarkdown           bool
 	useHierarchy          bool // Enable new Work + Artifacts hierarchy
 }
@@ -32,12 +35,18 @@ func NewEnhancedClient() *EnhancedClient {
 	groupManager := NewGroupManager(markdownIO, client.localWorkDir)
 	lifecycleManager := NewLifecycleManager(markdownIO, associationManager, groupManager)
 	
+	// Initialize task and updates managers
+	taskParser := parser.NewTaskParser()
+	updatesManager := NewUpdatesManager(client.localWorkDir)
+	
 	return &EnhancedClient{
 		Client:             client,
 		markdownIO:         markdownIO,
 		associationManager: associationManager,
 		groupManager:       groupManager,
 		lifecycleManager:   lifecycleManager,
+		taskParser:         taskParser,
+		updatesManager:     updatesManager,
 		useMarkdown:        true,  // Default to markdown format
 		useHierarchy:       true,  // Default to new hierarchy
 	}
@@ -751,4 +760,223 @@ func (c *EnhancedClient) RefreshActivityScores() error {
 		return fmt.Errorf("hierarchy not enabled")
 	}
 	return c.lifecycleManager.RefreshAllActivityScores()
+}
+
+// === Task Management Methods ===
+
+// ExtractTasksFromWork extracts tasks from a Work item's content
+func (c *EnhancedClient) ExtractTasksFromWork(workID string) ([]*models.Task, error) {
+	if !c.useHierarchy {
+		return []*models.Task{}, nil
+	}
+	
+	// Get the work item
+	allWork, err := c.markdownIO.ListAllWork()
+	if err != nil {
+		return nil, err
+	}
+	
+	for _, work := range allWork {
+		if work.ID == workID {
+			result := c.taskParser.ExtractTasksFromMarkdown(work.Content, workID)
+			
+			// Convert ParsedTask to Task
+			var tasks []*models.Task
+			for _, pt := range result.Tasks {
+				tasks = append(tasks, pt.Task)
+			}
+			
+			return tasks, nil
+		}
+	}
+	
+	return nil, fmt.Errorf("work item not found: %s", workID)
+}
+
+// ExtractTasksFromArtifact extracts tasks from an artifact's content
+func (c *EnhancedClient) ExtractTasksFromArtifact(artifactID string) ([]*models.Task, error) {
+	if !c.useHierarchy {
+		return []*models.Task{}, nil
+	}
+	
+	// Get the artifact
+	allArtifacts, err := c.markdownIO.ListAllArtifacts()
+	if err != nil {
+		return nil, err
+	}
+	
+	for _, artifact := range allArtifacts {
+		if artifact.ID == artifactID {
+			result := c.taskParser.ExtractTasksFromMarkdown(artifact.Content, artifactID)
+			
+			// Convert ParsedTask to Task
+			var tasks []*models.Task
+			for _, pt := range result.Tasks {
+				tasks = append(tasks, pt.Task)
+			}
+			
+			return tasks, nil
+		}
+	}
+	
+	return nil, fmt.Errorf("artifact not found: %s", artifactID)
+}
+
+// UpdateTaskStatus updates a task's status in a Work item
+func (c *EnhancedClient) UpdateTaskStatus(workID, taskID string, newStatus models.TaskStatus) error {
+	if !c.useHierarchy {
+		return fmt.Errorf("hierarchy not enabled")
+	}
+	
+	// Get the work item
+	allWork, err := c.markdownIO.ListAllWork()
+	if err != nil {
+		return err
+	}
+	
+	for _, work := range allWork {
+		if work.ID == workID {
+			// Update the task in markdown content
+			updatedContent := c.taskParser.UpdateTaskInMarkdown(work.Content, taskID, newStatus)
+			work.Content = updatedContent
+			work.UpdatedAt = time.Now()
+			
+			// Save the updated work item
+			return c.markdownIO.WriteWork(work)
+		}
+	}
+	
+	return fmt.Errorf("work item not found: %s", workID)
+}
+
+// === Updates Management Methods ===
+
+// CreateUpdate adds a new update to a Work item
+func (c *EnhancedClient) CreateUpdate(workID string, update *models.Update) error {
+	if !c.useHierarchy {
+		return fmt.Errorf("hierarchy not enabled")
+	}
+	
+	// Create the update
+	if err := c.updatesManager.CreateUpdate(workID, update); err != nil {
+		return err
+	}
+	
+	// Update the Work item's updates reference
+	allWork, err := c.markdownIO.ListAllWork()
+	if err != nil {
+		return err
+	}
+	
+	for _, work := range allWork {
+		if work.ID == workID {
+			work.UpdatesRef = c.updatesManager.GetUpdatesRef(workID)
+			work.UpdatedAt = time.Now()
+			return c.markdownIO.WriteWork(work)
+		}
+	}
+	
+	return fmt.Errorf("work item not found: %s", workID)
+}
+
+// GetUpdates retrieves all updates for a Work item
+func (c *EnhancedClient) GetUpdates(workID string) ([]*models.Update, error) {
+	if !c.useHierarchy {
+		return []*models.Update{}, nil
+	}
+	
+	return c.updatesManager.GetUpdates(workID)
+}
+
+// CreateAutomaticUpdate creates an update from Claude session completion
+func (c *EnhancedClient) CreateAutomaticUpdate(workID, sessionID, summary string, tasksCompleted []string, progressBefore, progressAfter int) error {
+	if !c.useHierarchy {
+		return fmt.Errorf("hierarchy not enabled")
+	}
+	
+	return c.updatesManager.CreateAutomaticUpdate(workID, sessionID, summary, tasksCompleted, progressBefore, progressAfter)
+}
+
+// CreateManualUpdate creates a manual update
+func (c *EnhancedClient) CreateManualUpdate(workID, title, summary, author string) error {
+	if !c.useHierarchy {
+		return fmt.Errorf("hierarchy not enabled")
+	}
+	
+	return c.updatesManager.CreateManualUpdate(workID, title, summary, author)
+}
+
+// === Enhanced Work Creation ===
+
+// CreateWorkWithTasks creates a new Work item with task extraction and updates setup
+func (c *EnhancedClient) CreateWorkWithTasks(title, description, schedule, priority string, tags []string, content string) (*models.Work, error) {
+	if !c.useHierarchy {
+		return nil, fmt.Errorf("hierarchy not enabled")
+	}
+	
+	// Create the basic work item
+	work, err := c.CreateWork(title, description, schedule, priority, tags, []string{})
+	if err != nil {
+		return nil, err
+	}
+	
+	// Add content
+	work.Content = content
+	
+	// Extract tasks from content
+	taskResult := c.taskParser.ExtractTasksFromMarkdown(content, work.ID)
+	
+	// Update overview timestamp
+	now := time.Now()
+	work.OverviewUpdated = &now
+	
+	// Set up updates reference
+	work.UpdatesRef = c.updatesManager.GetUpdatesRef(work.ID)
+	
+	// Save the updated work item
+	if err := c.markdownIO.WriteWork(work); err != nil {
+		return nil, err
+	}
+	
+	// Create initial update
+	initialUpdate := &models.Update{
+		ID:         fmt.Sprintf("update-%d", time.Now().UnixNano()),
+		WorkID:     work.ID,
+		Timestamp:  now,
+		Title:      "Work Item Created",
+		Summary:    fmt.Sprintf("Created new work item: %s", title),
+		Author:     "Claude",
+		UpdateType: "automatic",
+	}
+	
+	if len(taskResult.Tasks) > 0 {
+		var taskTitles []string
+		for _, pt := range taskResult.Tasks {
+			taskTitles = append(taskTitles, pt.Task.Title)
+		}
+		initialUpdate.TasksAdded = taskTitles
+		initialUpdate.Summary += fmt.Sprintf("\n\nExtracted %d tasks from content.", len(taskResult.Tasks))
+	}
+	
+	if err := c.updatesManager.CreateUpdate(work.ID, initialUpdate); err != nil {
+		// Don't fail the whole operation if update creation fails
+		// but log the error somehow
+	}
+	
+	return work, nil
+}
+
+// GetTaskParser returns the task parser for direct access
+func (c *EnhancedClient) GetTaskParser() *parser.TaskParser {
+	return c.taskParser
+}
+
+// GetUpdatesManager returns the updates manager for direct access
+func (c *EnhancedClient) GetUpdatesManager() *UpdatesManager {
+	return c.updatesManager
+}
+
+// GetLocalWorkDir returns the local work directory path
+func (c *EnhancedClient) GetLocalWorkDir() string {
+	return c.Client.GetLocalWorkDir()
 }

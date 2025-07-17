@@ -1,6 +1,7 @@
 package data
 
 import (
+	"bufio"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,8 +38,21 @@ func (s *ProjectScanner) findProjectRoot() {
 
 	// Look for common project indicators
 	for {
-		// Check for git root
-		if dirExists(filepath.Join(current, ".git")) {
+		// Check for git root - but handle worktrees properly
+		gitPath := filepath.Join(current, ".git")
+		if dirExists(gitPath) {
+			s.projectRoot = current
+			return
+		}
+		
+		// Check for git worktree (file pointing to main repo)
+		if fileExists(gitPath) {
+			// This is a git worktree, find the main repository
+			if mainRepo := s.findMainRepositoryFromWorktree(gitPath); mainRepo != "" {
+				s.projectRoot = mainRepo
+				return
+			}
+			// If we can't find main repo, use current directory
 			s.projectRoot = current
 			return
 		}
@@ -180,4 +194,30 @@ type WorkDirectoryInfo struct {
 	HasHistory   bool
 	HasFuture    bool
 	HasPending   bool
+}
+
+// findMainRepositoryFromWorktree reads a git worktree file to find the main repository
+func (s *ProjectScanner) findMainRepositoryFromWorktree(gitFilePath string) string {
+	file, err := os.Open(gitFilePath)
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "gitdir: ") {
+			gitdir := strings.TrimPrefix(line, "gitdir: ")
+			// gitdir points to something like: /path/to/main/repo/.git/worktrees/name
+			// We want to extract /path/to/main/repo
+			if strings.Contains(gitdir, "/.git/worktrees/") {
+				parts := strings.Split(gitdir, "/.git/worktrees/")
+				if len(parts) > 0 {
+					return parts[0]
+				}
+			}
+		}
+	}
+	return ""
 }

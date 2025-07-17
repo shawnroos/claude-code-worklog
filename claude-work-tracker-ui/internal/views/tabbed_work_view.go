@@ -27,7 +27,7 @@ type TabbedWorkView struct {
 	tabs          []Tab
 	activeTab     int
 	viewport      viewport.Model
-	workItems     map[string][]*models.MarkdownWorkItem // keyed by schedule
+	workItems     map[string][]*models.Work // keyed by schedule
 	selectedItem  int
 	width         int
 	height        int
@@ -145,7 +145,7 @@ func NewTabbedWorkView(dataClient *data.EnhancedClient) *TabbedWorkView {
 		tabs:          tabs,
 		activeTab:     0,
 		viewport:      vp,
-		workItems:     make(map[string][]*models.MarkdownWorkItem),
+		workItems:     make(map[string][]*models.Work),
 		selectedItem:  0,
 		glamourRender: glamourRenderer,
 		showDetail:    false,
@@ -175,7 +175,7 @@ func (e errMsg) Error() string { return e.err.Error() }
 // loadScheduleItems loads work items for a specific schedule
 func (t *TabbedWorkView) loadScheduleItems(schedule string) tea.Cmd {
 	return func() tea.Msg {
-		items, err := t.dataClient.GetWorkItemsBySchedule(schedule)
+		items, err := t.dataClient.GetWorkBySchedule(schedule)
 		if err != nil {
 			return errMsg{err}
 		}
@@ -186,7 +186,7 @@ func (t *TabbedWorkView) loadScheduleItems(schedule string) tea.Cmd {
 // scheduleItemsLoadedMsg carries loaded work items for a schedule
 type scheduleItemsLoadedMsg struct {
 	schedule string
-	items    []*models.MarkdownWorkItem
+	items    []*models.Work
 }
 
 // Update handles messages and user input
@@ -372,7 +372,7 @@ func (t *TabbedWorkView) updateViewportContent() {
 }
 
 // renderItemList renders the list of work items
-func (t *TabbedWorkView) renderItemList(items []*models.MarkdownWorkItem) {
+func (t *TabbedWorkView) renderItemList(items []*models.Work) {
 	var content strings.Builder
 	
 	for i, item := range items {
@@ -382,8 +382,8 @@ func (t *TabbedWorkView) renderItemList(items []*models.MarkdownWorkItem) {
 		}
 		
 		// Create item summary
-		typeIcon := t.getTypeIcon(item.Type)
-		summary := fmt.Sprintf("%s %s", typeIcon, item.Summary)
+		statusIcon := t.getStatusIcon(item.Metadata.Status)
+		summary := fmt.Sprintf("%s %s", statusIcon, item.Title)
 		
 		// Add tags if any
 		if len(item.TechnicalTags) > 0 {
@@ -399,25 +399,82 @@ func (t *TabbedWorkView) renderItemList(items []*models.MarkdownWorkItem) {
 }
 
 // renderItemDetail renders the detailed view of a work item
-func (t *TabbedWorkView) renderItemDetail(item *models.MarkdownWorkItem) {
+func (t *TabbedWorkView) renderItemDetail(item *models.Work) {
 	// Create full markdown content
 	var content strings.Builder
 	
 	// Header with metadata
-	content.WriteString(fmt.Sprintf("# %s\n\n", item.Summary))
-	content.WriteString(fmt.Sprintf("**Type:** %s | **Schedule:** %s\n\n", 
-		strings.Title(item.Type), strings.ToUpper(item.Schedule)))
+	content.WriteString(fmt.Sprintf("# %s\n\n", item.Title))
+	content.WriteString(fmt.Sprintf("**Status:** %s | **Schedule:** %s\n\n", 
+		strings.Title(item.Metadata.Status), strings.ToUpper(item.Schedule)))
+	
+	if item.Metadata.Priority != "" {
+		content.WriteString(fmt.Sprintf("**Priority:** %s\n\n", strings.Title(item.Metadata.Priority)))
+	}
 	
 	if len(item.TechnicalTags) > 0 {
 		content.WriteString(fmt.Sprintf("**Tags:** %s\n\n", 
 			strings.Join(item.TechnicalTags, ", ")))
 	}
 	
+	if item.Metadata.ProgressPercent > 0 {
+		content.WriteString(fmt.Sprintf("**Progress:** %d%%\n\n", item.Metadata.ProgressPercent))
+	}
+	
+	if item.Metadata.ArtifactCount > 0 {
+		content.WriteString(fmt.Sprintf("**Artifacts:** %d\n\n", item.Metadata.ArtifactCount))
+	}
+	
 	// Add separator
 	content.WriteString("---\n\n")
 	
+	// Add description
+	if item.Description != "" {
+		content.WriteString(item.Description)
+		content.WriteString("\n\n")
+	}
+	
 	// Add the main content
-	content.WriteString(item.Content)
+	if item.Content != "" {
+		content.WriteString(item.Content)
+		content.WriteString("\n\n")
+	}
+	
+	// Fetch and render associated artifacts automatically
+	if len(item.ArtifactRefs) > 0 {
+		artifacts, err := t.dataClient.GetWorkArtifacts(item.ID)
+		if err == nil && len(artifacts) > 0 {
+			content.WriteString("## Associated Artifacts\n\n")
+			
+			for i, artifact := range artifacts {
+				// Add artifact separator
+				if i > 0 {
+					content.WriteString("\n---\n\n")
+				}
+				
+				// Artifact header
+				content.WriteString(fmt.Sprintf("### %s (%s)\n\n", 
+					artifact.Summary, strings.Title(artifact.Type)))
+				
+				// Artifact metadata
+				if len(artifact.TechnicalTags) > 0 {
+					content.WriteString(fmt.Sprintf("**Tags:** %s\n\n", 
+						strings.Join(artifact.TechnicalTags, ", ")))
+				}
+				
+				if artifact.Metadata.Status != "" {
+					content.WriteString(fmt.Sprintf("**Status:** %s\n\n", 
+						strings.Title(artifact.Metadata.Status)))
+				}
+				
+				// Artifact content
+				if artifact.Content != "" {
+					content.WriteString(artifact.Content)
+					content.WriteString("\n\n")
+				}
+			}
+		}
+	}
 	
 	// Render with glamour
 	rendered, err := t.glamourRender.Render(content.String())
@@ -430,6 +487,21 @@ func (t *TabbedWorkView) renderItemDetail(item *models.MarkdownWorkItem) {
 }
 
 // getTypeIcon returns an icon for the work item type
+func (t *TabbedWorkView) getStatusIcon(status string) string {
+	switch status {
+	case models.WorkStatusInProgress:
+		return "🔄"
+	case models.WorkStatusCompleted:
+		return "✅"
+	case models.WorkStatusBlocked:
+		return "🚫"
+	case models.WorkStatusActive:
+		return "🎯"
+	default:
+		return "📋"
+	}
+}
+
 func (t *TabbedWorkView) getTypeIcon(itemType string) string {
 	switch itemType {
 	case models.TypePlan:
