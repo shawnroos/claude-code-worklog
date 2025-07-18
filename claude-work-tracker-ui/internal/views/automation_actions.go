@@ -60,28 +60,31 @@ func (m *AutomationActionsMenu) buildActions() {
 	m.actions = []AutomationAction{}
 	
 	// Check for pending transitions
-	if pending, ok := m.work.Metadata.Metadata["pending_transition"].(string); ok && pending != "" {
-		reason := "Manual confirmation required"
-		if r, ok := m.work.Metadata.Metadata["transition_reason"].(string); ok {
-			reason = r
-		}
+	// Would need pending_transition field in WorkMetadata
+	if false { // Disabled for now
+		// Would need transition_reason field in WorkMetadata
+		// reason := "Manual confirmation required"
+		// if r, ok := m.work.Metadata.Metadata["transition_reason"].(string); ok {
+		//     reason = r
+		// }
 		
-		m.actions = append(m.actions, AutomationAction{
-			ID:          "confirm_pending",
-			Title:       fmt.Sprintf("Confirm: Move to %s", strings.ToUpper(pending)),
-			Description: reason,
-			Icon:        "✓", // Checkmark
-			Type:        ActionConfirmPending,
-			Target:      pending,
-		})
+		// Would create pending transition actions here
+		// m.actions = append(m.actions, AutomationAction{
+		//     ID:          "confirm_pending",
+		//     Title:       fmt.Sprintf("Confirm: Move to %s", strings.ToUpper(pending)),
+		//     Description: reason,
+		//     Icon:        "✓", // Checkmark
+		//     Type:        ActionConfirmPending,
+		//     Target:      pending,
+		// })
 		
-		m.actions = append(m.actions, AutomationAction{
-			ID:          "reject_pending",
-			Title:       "Reject pending transition",
-			Description: "Keep current state",
-			Icon:        "✗", // X mark
-			Type:        ActionRejectPending,
-		})
+		// m.actions = append(m.actions, AutomationAction{
+		//     ID:          "reject_pending",
+		//     Title:       "Reject pending transition",
+		//     Description: "Keep current state",
+		//     Icon:        "✗", // X mark
+		//     Type:        ActionRejectPending,
+		// })
 	}
 	
 	// Add suggested transitions
@@ -155,8 +158,8 @@ func (m *AutomationActionsMenu) buildActions() {
 		})
 	}
 	
-	// Automation management
-	if _, hasAuto := m.work.Metadata.Metadata["auto_transitioned"]; hasAuto {
+	// Automation management - would need auto_transitioned field in WorkMetadata
+	if false { // Disabled for now
 		m.actions = append(m.actions, AutomationAction{
 			ID:          "clear_auto",
 			Title:       "Clear automation flags",

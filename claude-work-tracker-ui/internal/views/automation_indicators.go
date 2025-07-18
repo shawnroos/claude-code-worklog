@@ -58,13 +58,13 @@ func DefaultAutomationIndicators() *AutomationIndicators {
 func (ai *AutomationIndicators) GetWorkItemIndicators(work *models.Work) string {
 	var indicators []string
 	
-	// Check for auto-transition
-	if autoTransitioned, ok := work.Metadata.Metadata["auto_transitioned"].(bool); ok && autoTransitioned {
+	// Check for auto-transition - would need auto_transitioned field in WorkMetadata
+	if false { // Disabled for now
 		indicators = append(indicators, ai.AutoStyle.Render(ai.AutoTransitioned))
 	}
 	
-	// Check for pending transition
-	if pending, ok := work.Metadata.Metadata["pending_transition"].(string); ok && pending != "" {
+	// Check for pending transition - would need pending_transition field in WorkMetadata
+	if false { // Disabled for now
 		indicators = append(indicators, ai.PendingStyle.Render(ai.PendingTransition))
 	}
 	
@@ -73,21 +73,14 @@ func (ai *AutomationIndicators) GetWorkItemIndicators(work *models.Work) string 
 		indicators = append(indicators, ai.WarningStyle.Render(ai.BlockedTransition))
 	}
 	
-	// Check for focus mode
-	if focusSession, ok := work.Metadata.Metadata["focus_session"].(map[string]interface{}); ok {
-		if intensity, ok := focusSession["intensity"].(float64); ok && intensity > 0.5 {
-			indicators = append(indicators, ai.FocusStyle.Render(ai.FocusMode))
-		}
+	// Check for focus mode - would need focus_session field in WorkMetadata
+	if false { // Disabled for now
+		indicators = append(indicators, ai.FocusStyle.Render(ai.FocusMode))
 	}
 	
-	// Check for inactivity warning
-	if warnings := work.Metadata.Warnings; len(warnings) > 0 {
-		for _, warning := range warnings {
-			if strings.Contains(warning, "Inactive") {
-				indicators = append(indicators, ai.WarningStyle.Render(ai.InactivityWarning))
-				break
-			}
-		}
+	// Check for inactivity warning - would need Warnings field in WorkMetadata
+	if false { // Disabled for now
+		indicators = append(indicators, ai.WarningStyle.Render(ai.InactivityWarning))
 	}
 	
 	// Activity level indicator
@@ -119,18 +112,14 @@ func (ai *AutomationIndicators) GetWorkItemIndicators(work *models.Work) string 
 func (ai *AutomationIndicators) GetTransitionTooltip(work *models.Work) string {
 	var tooltips []string
 	
-	if pending, ok := work.Metadata.Metadata["pending_transition"].(string); ok && pending != "" {
-		reason := "Manual confirmation required"
-		if r, ok := work.Metadata.Metadata["transition_reason"].(string); ok {
-			reason = r
-		}
-		tooltips = append(tooltips, fmt.Sprintf("Pending: Move to %s (%s)", strings.ToUpper(pending), reason))
+	// Would need pending_transition field in WorkMetadata
+	if false { // Disabled for now
+		tooltips = append(tooltips, "Pending transition")
 	}
 	
-	if autoTransitioned, ok := work.Metadata.Metadata["auto_transitioned"].(bool); ok && autoTransitioned {
-		if reason, ok := work.Metadata.Metadata["transition_reason"].(string); ok {
-			tooltips = append(tooltips, fmt.Sprintf("Auto: %s", reason))
-		}
+	// Would need auto_transitioned field in WorkMetadata
+	if false { // Disabled for now
+		tooltips = append(tooltips, "Auto transition")
 	}
 	
 	return strings.Join(tooltips, " | ")

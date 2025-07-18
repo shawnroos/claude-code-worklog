@@ -12,13 +12,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/shawnroos/claude-work-tracker-ui/internal/model"
+	"claude-work-tracker-ui/internal/models"
 )
 
 // ContextManager manages Git context for work items
 type ContextManager struct {
 	mu         sync.RWMutex
-	cache      map[string]*model.GitContext
+	cache      map[string]*models.GitContext
 	cacheTTL   time.Duration
 	lastUpdate map[string]time.Time
 }
@@ -26,14 +26,14 @@ type ContextManager struct {
 // NewContextManager creates a new Git context manager
 func NewContextManager() *ContextManager {
 	return &ContextManager{
-		cache:      make(map[string]*model.GitContext),
+		cache:      make(map[string]*models.GitContext),
 		cacheTTL:   5 * time.Minute,
 		lastUpdate: make(map[string]time.Time),
 	}
 }
 
 // GetContext retrieves Git context for a directory
-func (cm *ContextManager) GetContext(ctx context.Context, workingDir string) (*model.GitContext, error) {
+func (cm *ContextManager) GetContext(ctx context.Context, workingDir string) (*models.GitContext, error) {
 	cm.mu.RLock()
 	if cached, ok := cm.cache[workingDir]; ok {
 		if time.Since(cm.lastUpdate[workingDir]) < cm.cacheTTL {
@@ -59,8 +59,8 @@ func (cm *ContextManager) GetContext(ctx context.Context, workingDir string) (*m
 }
 
 // fetchGitContext retrieves Git information for a directory
-func (cm *ContextManager) fetchGitContext(ctx context.Context, workingDir string) (*model.GitContext, error) {
-	gitCtx := &model.GitContext{
+func (cm *ContextManager) fetchGitContext(ctx context.Context, workingDir string) (*models.GitContext, error) {
+	gitCtx := &models.GitContext{
 		WorkingDirectory: workingDir,
 	}
 
@@ -91,7 +91,7 @@ func (cm *ContextManager) fetchGitContext(ctx context.Context, workingDir string
 }
 
 // UpdateWorkItemContext updates a work item with current Git context
-func (cm *ContextManager) UpdateWorkItemContext(ctx context.Context, work *model.Work) error {
+func (cm *ContextManager) UpdateWorkItemContext(ctx context.Context, work *models.Work) error {
 	if work.GitContext.WorkingDirectory == "" {
 		// Try to determine working directory from current location
 		wd, err := os.Getwd()

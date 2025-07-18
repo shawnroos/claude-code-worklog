@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/shawnroos/claude-work-tracker-ui/internal/hooks"
-	"github.com/shawnroos/claude-work-tracker-ui/internal/model"
+	"claude-work-tracker-ui/internal/hooks"
+	"claude-work-tracker-ui/internal/models"
 )
 
 // ActivityDetector monitors and analyzes work item activity patterns
@@ -191,7 +191,7 @@ func (ad *ActivityDetector) AnalyzeActivity(workID string) map[string]interface{
 }
 
 // SuggestTransitions suggests transitions based on activity patterns
-func (ad *ActivityDetector) SuggestTransitions(work *model.Work) []TransitionSuggestion {
+func (ad *ActivityDetector) SuggestTransitions(work *models.Work) []TransitionSuggestion {
 	var suggestions []TransitionSuggestion
 
 	analysis := ad.AnalyzeActivity(work.ID)
@@ -212,7 +212,7 @@ func (ad *ActivityDetector) SuggestTransitions(work *model.Work) []TransitionSug
 		}
 
 		// Suggest status change based on activity
-		if work.Status == "draft" || work.Status == "active" {
+		if work.Metadata.Status == "draft" || work.Metadata.Status == "active" {
 			suggestions = append(suggestions, TransitionSuggestion{
 				Type:       "status_change",
 				Target:     "in_progress",
@@ -225,7 +225,7 @@ func (ad *ActivityDetector) SuggestTransitions(work *model.Work) []TransitionSug
 
 	// Check for inactivity
 	if isInactive, _ := analysis["is_inactive"].(bool); isInactive {
-		if work.Schedule == "now" && work.Status == "in_progress" {
+		if work.Schedule == "now" && work.Metadata.Status == "in_progress" {
 			daysSince, _ := analysis["days_since_activity"].(float64)
 			suggestions = append(suggestions, TransitionSuggestion{
 				Type:       "schedule_change",
@@ -254,8 +254,8 @@ func (ad *ActivityDetector) registerHooks() {
 	// Track all status changes
 	ad.hookSystem.Register(hooks.AfterStatusChange, "activity_tracker", func(ctx context.Context, hookCtx *hooks.HookContext) error {
 		ad.RecordActivity(hookCtx.WorkItem.ID, "status_change", map[string]interface{}{
-			"old_status": hookCtx.OldWorkItem.Status,
-			"new_status": hookCtx.WorkItem.Status,
+			"old_status": hookCtx.OldWorkItem.Metadata.Status,
+			"new_status": hookCtx.WorkItem.Metadata.Status,
 		})
 		return nil
 	})
@@ -295,8 +295,8 @@ func (ad *ActivityDetector) registerHooks() {
 }
 
 // GetInactiveWorkItems returns work items that have been inactive
-func (ad *ActivityDetector) GetInactiveWorkItems(workItems []model.Work) []model.Work {
-	var inactive []model.Work
+func (ad *ActivityDetector) GetInactiveWorkItems(workItems []models.Work) []models.Work {
+	var inactive []models.Work
 
 	for _, work := range workItems {
 		analysis := ad.AnalyzeActivity(work.ID)

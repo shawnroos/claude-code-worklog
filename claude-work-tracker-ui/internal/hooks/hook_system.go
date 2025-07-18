@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/shawnroos/claude-work-tracker-ui/internal/model"
+	"claude-work-tracker-ui/internal/models"
 )
 
 // HookType represents different types of hooks in the system
@@ -35,8 +35,8 @@ const (
 
 // HookContext contains information passed to hook handlers
 type HookContext struct {
-	WorkItem    *model.Work
-	OldWorkItem *model.Work // For change events
+	WorkItem    *models.Work
+	OldWorkItem *models.Work // For change events
 	EventType   HookType
 	Timestamp   time.Time
 	Metadata    map[string]interface{}
