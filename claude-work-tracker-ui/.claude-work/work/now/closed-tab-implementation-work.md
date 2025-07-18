@@ -4,23 +4,23 @@ title: Implement CLOSED tab for completed and canceled work items
 description: Add a CLOSED tab to the TUI for better work state management and clearer NOW/NEXT/LATER semantics
 schedule: now
 created_at: 2025-07-17T18:50:00Z
-updated_at: 2025-07-17T18:50:00Z
-overview_updated: 2025-07-17T18:50:00Z
+updated_at: 2025-07-18T17:20:00Z
+overview_updated: 2025-07-18T17:20:00Z
 updates_ref: updates/work-closed-tab-1752533400.md
 git_context:
-  branch: feature/tasks
-  worktree: worktrees/tasks
-  working_directory: /Users/shawnroos/claude-work-tracker/worktrees/tasks/claude-work-tracker-ui
+  branch: main
+  worktree: main
+  working_directory: /Users/shawnroos/claude-work-tracker
 session_number: session-1752533400
-technical_tags: [ui, workflow, state-management, tabs]
+technical_tags: [ui, workflow, state-management, tabs, search]
 artifact_refs: []
 metadata:
   status: in_progress
   priority: high
   estimated_effort: medium
-  progress_percent: 60
+  progress_percent: 95
   artifact_count: 0
-  activity_score: 25.0
+  activity_score: 35.0
 ---
 
 # CLOSED Tab Implementation for Better Work State Management
@@ -69,35 +69,35 @@ status: canceled        → CLOSED
 
 ## Implementation Tasks
 
-### Phase 1: Add CLOSED Tab
-- [ ] Add CLOSED to tab enum and navigation
-- [ ] Update keyboard shortcuts (Tab cycles through 4 tabs)
-- [ ] Style CLOSED tab consistently
-- [ ] Update help text
+### Phase 1: Add CLOSED Tab ✅
+- [x] Add CLOSED to tab enum and navigation
+- [x] Update keyboard shortcuts (Tab cycles through 4 tabs)
+- [x] Style CLOSED tab consistently
+- [x] Update help text
 
-### Phase 2: Update Schedule Logic
-- [ ] Modify GetWorkBySchedule to include "closed" schedule
-- [ ] Update work directory structure to include `work/closed/`
-- [ ] Implement status-to-schedule mapping logic
-- [ ] Add automatic schedule assignment based on status
+### Phase 2: Update Schedule Logic ✅
+- [x] Modify GetWorkBySchedule to include "closed" schedule
+- [x] Update work directory structure to include `work/closed/`
+- [x] Implement status-to-schedule mapping logic
+- [x] Add automatic schedule assignment based on status
 
-### Phase 3: Migration Tools
-- [ ] Create script to move completed items to closed/
+### Phase 3: Migration Tools ✅
+- [x] Create script to move completed items to closed/
 - [ ] Update existing work items with proper schedules
-- [ ] Implement auto-migration on status change
+- [x] Implement auto-migration on status change
 - [ ] Add validation to prevent invalid combinations
 
-### Phase 4: Enhanced Filtering
-- [ ] Filter NOW to only show in-progress items
-- [ ] Add status badges in CLOSED tab (✅ completed, ❌ canceled)
-- [ ] Sort CLOSED by completion date (newest first)
-- [ ] Add item count to each tab header
+### Phase 4: Enhanced Filtering ✅
+- [x] Filter CLOSED to only show completed/canceled items
+- [x] Add status badges in CLOSED tab (✅ completed, ❌ canceled, 📦 archived)
+- [x] Sort CLOSED by completion date (newest first)
+- [x] Add item count to each tab header
 
-### Phase 5: Workflow Improvements
-- [ ] Quick action to move items between tabs
-- [ ] Keyboard shortcut to complete/cancel current item
-- [ ] Bulk operations for cleanup
-- [ ] Auto-archive old closed items
+### Phase 5: Workflow Improvements ✅
+- [x] Search functionality with fuzzy matching (/ to search)
+- [x] Keyboard shortcut to complete/cancel current item (c/x in NOW tab)
+- [ ] Quick action to move items between tabs (arrows)
+- [x] Archive old closed items (via migration script)
 
 ## Directory Structure
 ```

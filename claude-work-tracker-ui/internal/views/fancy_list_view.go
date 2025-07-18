@@ -3,6 +3,9 @@ package views
 import (
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -99,13 +102,23 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 
 	// Status/priority badge with inverted background
 	var badgeText string
+	var statusIcon string
+	
+	// Add colored Unicode icons for CLOSED tab items
 	switch item.Metadata.Status {
 	case models.WorkStatusInProgress:
 		badgeText = "IN_PROGRESS"
 	case models.WorkStatusBlocked:
 		badgeText = "BLOCKED"
 	case models.WorkStatusCompleted:
+		statusIcon = "✅ "
 		badgeText = "COMPLETED"
+	case models.WorkStatusCanceled:
+		statusIcon = "❌ "
+		badgeText = "CANCELED"
+	case models.WorkStatusArchived:
+		statusIcon = "📦 "
+		badgeText = "ARCHIVED"
 	default:
 		badgeText = strings.ToUpper(item.Metadata.Priority)
 		if badgeText == "" {
@@ -113,7 +126,29 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		}
 	}
 	
-	statusBadge := statusStyle.Render(badgeText)
+	// For CLOSED tab items, use icon + colored text instead of background badge
+	var statusBadge string
+	if statusIcon != "" && (item.Schedule == models.ScheduleClosed || 
+		item.Metadata.Status == models.WorkStatusCompleted || 
+		item.Metadata.Status == models.WorkStatusCanceled ||
+		item.Metadata.Status == models.WorkStatusArchived) {
+		// Use colored text for CLOSED items
+		var coloredStyle lipgloss.Style
+		switch item.Metadata.Status {
+		case models.WorkStatusCompleted:
+			coloredStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42")) // Green
+		case models.WorkStatusCanceled:
+			coloredStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196")) // Red
+		case models.WorkStatusArchived:
+			coloredStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244")) // Gray
+		default:
+			coloredStyle = lipgloss.NewStyle()
+		}
+		statusBadge = statusIcon + coloredStyle.Render(badgeText)
+	} else {
+		// Regular badge for non-CLOSED items
+		statusBadge = statusStyle.Render(badgeText)
+	}
 	
 	// Title line with status badge + title
 	titleLine := lipgloss.JoinHorizontal(lipgloss.Center, statusBadge, " ", titleStyle.Render(item.Title))
@@ -216,6 +251,9 @@ type FancyListView struct {
 	embeddedCache    map[string]string // Cache embedded content
 	embeddingStates  map[string]embeddingState // Track embedding loading states
 	lastWidth        int               // Track width changes for cache invalidation
+	searchMode       bool              // Whether search is active
+	searchInput      string            // Current search query
+	filteredItems    []*models.Work    // Filtered results
 }
 
 // embeddingState tracks the state of embedded content
@@ -243,6 +281,10 @@ type FancyKeyMap struct {
 	Back          key.Binding
 	NextItem      key.Binding
 	PrevItem      key.Binding
+	CompleteItem  key.Binding
+	CancelItem    key.Binding
+	Search        key.Binding
+	ClearSearch   key.Binding
 	Quit          key.Binding
 }
 
@@ -275,6 +317,22 @@ func DefaultFancyKeyMap() FancyKeyMap {
 		PrevItem: key.NewBinding(
 			key.WithKeys("left"),
 			key.WithHelp("←", "prev item"),
+		),
+		CompleteItem: key.NewBinding(
+			key.WithKeys("c"),
+			key.WithHelp("c", "complete item"),
+		),
+		CancelItem: key.NewBinding(
+			key.WithKeys("x"),
+			key.WithHelp("x", "cancel item"),
+		),
+		Search: key.NewBinding(
+			key.WithKeys("/"),
+			key.WithHelp("/", "search"),
+		),
+		ClearSearch: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "clear search"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
@@ -535,9 +593,42 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Let viewport handle scrolling keys
 				f.viewport, cmd = f.viewport.Update(msg)
 			}
+		} else if f.searchMode {
+			// Search mode input handling
+			switch msg.String() {
+			case "enter":
+				// Exit search mode but keep search active
+				f.searchMode = false
+				f.updateListItems()
+			case "esc":
+				// Clear search and exit search mode
+				f.searchMode = false
+				f.searchInput = ""
+				f.updateListItems()
+			case "backspace":
+				if len(f.searchInput) > 0 {
+					f.searchInput = f.searchInput[:len(f.searchInput)-1]
+					f.updateListItems()
+				}
+			default:
+				// Add character to search
+				if len(msg.String()) == 1 {
+					f.searchInput += msg.String()
+					f.updateListItems()
+				}
+			}
 		} else {
 			// List view navigation
 			switch {
+			case key.Matches(msg, f.keys.Search):
+				// Enter search mode
+				f.searchMode = true
+			case key.Matches(msg, f.keys.ClearSearch):
+				// Clear search
+				if f.searchInput != "" {
+					f.searchInput = ""
+					f.updateListItems()
+				}
 			case key.Matches(msg, f.keys.NextTab):
 				f.nextTab()
 				f.updateListItems()
@@ -558,6 +649,20 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						if f.hasEmbeddings(workItem.Work) {
 							return f, f.startAutoEmbeddingLoad()
 						}
+					}
+				}
+			case key.Matches(msg, f.keys.CompleteItem):
+				if selectedItem := f.list.SelectedItem(); selectedItem != nil {
+					if workItem, ok := selectedItem.(WorkItem); ok {
+						// Mark item as completed and move to CLOSED
+						return f, f.completeWorkItem(workItem.Work)
+					}
+				}
+			case key.Matches(msg, f.keys.CancelItem):
+				if selectedItem := f.list.SelectedItem(); selectedItem != nil {
+					if workItem, ok := selectedItem.(WorkItem); ok {
+						// Mark item as canceled and move to CLOSED
+						return f, f.cancelWorkItem(workItem.Work)
 					}
 				}
 			default:
@@ -602,15 +707,46 @@ func (f *FancyListView) View() string {
 
 	// Render connected tab bar and list
 	tabBar := f.renderConnectedTabBar()
+	searchBar := f.renderSearchBar()
 	listContent := f.renderConnectedList()
 	help := f.renderHelp()
 
+	// Join components conditionally
+	components := []string{tabBar}
+	if f.searchMode || f.searchInput != "" {
+		components = append(components, searchBar)
+	}
+	components = append(components, listContent, help)
+
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
-		tabBar,
-		listContent,
-		help,
+		components...,
 	)
+}
+
+// renderSearchBar renders the search input bar
+func (f *FancyListView) renderSearchBar() string {
+	searchStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(fancyHighlightColor).
+		BorderTop(false).
+		BorderBottom(false).
+		Padding(0, 1).
+		Width(f.width - 2)
+	
+	var searchContent string
+	if f.searchMode {
+		// Show active search input with cursor
+		searchContent = fmt.Sprintf("🔍 Search: %s│", f.searchInput)
+	} else if f.searchInput != "" {
+		// Show search results count
+		resultCount := len(f.filteredItems)
+		totalCount := len(f.workItems[f.getCurrentSchedule()])
+		searchContent = fmt.Sprintf("🔍 \"%s\" (%d/%d results) - Press / to search again", 
+			f.searchInput, resultCount, totalCount)
+	}
+	
+	return searchStyle.Render(searchContent)
 }
 
 // renderConnectedTabBar creates the top tab bar that connects to list content
@@ -665,6 +801,12 @@ func (f *FancyListView) renderConnectedTabBar() string {
 func (f *FancyListView) renderConnectedList() string {
 	// Create constrained list container to prevent overflow
 	maxHeight := f.height - 8 // Reserve space for tabs and help
+	
+	// Account for search bar if visible
+	if f.searchMode || f.searchInput != "" {
+		maxHeight -= 3 // Search bar takes 3 lines
+	}
+	
 	if maxHeight < 5 {
 		maxHeight = 5
 	}
@@ -751,7 +893,15 @@ func (f *FancyListView) renderHelp() string {
 			helpText = "esc: back • q: quit"
 		}
 	} else {
-		helpText = "tab/shift+tab: switch tabs • ↑/↓: navigate • enter: view full • d: detail • q: quit"
+		// Show complete/cancel shortcuts only for NOW tab items
+		schedule := f.getCurrentSchedule()
+		if f.searchMode {
+			helpText = "Type to search • enter: confirm • esc: cancel"
+		} else if schedule == models.ScheduleNow {
+			helpText = "tab: switch • ↑/↓: nav • enter: view • c: complete • x: cancel • /: search • q: quit"
+		} else {
+			helpText = "tab: switch • ↑/↓: nav • enter: view • /: search • d: detail • q: quit"
+		}
 	}
 	return lipgloss.NewStyle().
 		Foreground(lipgloss.Color("241")).
@@ -795,12 +945,12 @@ func (f *FancyListView) renderFullPost() string {
 }
 
 func (f *FancyListView) updateListItems() {
-	schedule := f.getCurrentSchedule()
-	items := f.workItems[schedule]
+	// Filter and sort items
+	f.filterAndSortItems()
 	
+	// Convert to list items
 	var listItems []list.Item
-	for _, item := range items {
-		// All filtering is now done at the data layer
+	for _, item := range f.filteredItems {
 		listItems = append(listItems, WorkItem{item})
 	}
 	
@@ -818,8 +968,153 @@ func (f *FancyListView) updateDelegate() {
 	f.list.SetDelegate(delegate)
 }
 
+// completeWorkItem marks a work item as completed and moves it to CLOSED
+func (f *FancyListView) completeWorkItem(item *models.Work) tea.Cmd {
+	return func() tea.Msg {
+		// Update the item's status and schedule
+		item.Metadata.Status = models.WorkStatusCompleted
+		item.CompletedAt = func() *time.Time { t := time.Now(); return &t }()
+		item.UpdatedAt = time.Now()
+		
+		// Auto-migrate to closed schedule/directory
+		oldSchedule := item.Schedule
+		
+		// Calculate old path
+		workDir := f.dataClient.GetLocalWorkDir()
+		oldDir := filepath.Join(workDir, "work", strings.ToLower(oldSchedule))
+		oldPath := ""
+		if item.Filename != "" {
+			oldPath = filepath.Join(oldDir, item.Filename)
+		}
+		
+		markdownIO := data.NewMarkdownIO(workDir)
+		
+		// Update schedule
+		item.Schedule = models.ScheduleClosed
+		
+		// Write to new location
+		if err := markdownIO.WriteWork(item); err != nil {
+			// If write fails, restore original schedule
+			item.Schedule = oldSchedule
+			return errMsg{err: err}
+		}
+		
+		// Delete the old file if it exists and is different from the new path
+		if oldPath != "" && oldPath != item.Filepath {
+			os.Remove(oldPath) // Ignore error as file might not exist
+		}
+		
+		// Reload items to reflect changes
+		return f.loadWorkItems()
+	}
+}
+
+// cancelWorkItem marks a work item as canceled and moves it to CLOSED
+func (f *FancyListView) cancelWorkItem(item *models.Work) tea.Cmd {
+	return func() tea.Msg {
+		// Update the item's status and schedule
+		item.Metadata.Status = models.WorkStatusCanceled
+		item.CompletedAt = func() *time.Time { t := time.Now(); return &t }()
+		item.UpdatedAt = time.Now()
+		
+		// Auto-migrate to closed schedule/directory
+		oldSchedule := item.Schedule
+		
+		// Calculate old path
+		workDir := f.dataClient.GetLocalWorkDir()
+		oldDir := filepath.Join(workDir, "work", strings.ToLower(oldSchedule))
+		oldPath := ""
+		if item.Filename != "" {
+			oldPath = filepath.Join(oldDir, item.Filename)
+		}
+		
+		markdownIO := data.NewMarkdownIO(workDir)
+		
+		// Update schedule
+		item.Schedule = models.ScheduleClosed
+		
+		// Write to new location
+		if err := markdownIO.WriteWork(item); err != nil {
+			// If write fails, restore original schedule
+			item.Schedule = oldSchedule
+			return errMsg{err: err}
+		}
+		
+		// Delete the old file if it exists and is different from the new path
+		if oldPath != "" && oldPath != item.Filepath {
+			os.Remove(oldPath) // Ignore error as file might not exist
+		}
+		
+		// Reload items to reflect changes
+		return f.loadWorkItems()
+	}
+}
+
 func (f *FancyListView) nextTab() {
 	f.activeTab = (f.activeTab + 1) % len(f.tabs)
+}
+
+// fuzzyMatch performs case-insensitive fuzzy string matching
+func fuzzyMatch(query, target string) bool {
+	query = strings.ToLower(query)
+	target = strings.ToLower(target)
+	
+	// Simple substring match for now, can enhance with better fuzzy logic later
+	if strings.Contains(target, query) {
+		return true
+	}
+	
+	// Check if all characters in query appear in order in target
+	queryIdx := 0
+	for _, char := range target {
+		if queryIdx < len(query) && char == rune(query[queryIdx]) {
+			queryIdx++
+		}
+	}
+	return queryIdx == len(query)
+}
+
+// filterAndSortItems filters items based on search and sorts by newest first
+func (f *FancyListView) filterAndSortItems() {
+	schedule := f.getCurrentSchedule()
+	allItems := f.workItems[schedule]
+	
+	// Filter based on search
+	var filtered []*models.Work
+	if f.searchInput == "" {
+		filtered = make([]*models.Work, len(allItems))
+		copy(filtered, allItems)
+	} else {
+		filtered = make([]*models.Work, 0)
+		for _, item := range allItems {
+			// Search in title, description, tags, and content
+			searchText := strings.Join([]string{
+				item.Title,
+				item.Description,
+				strings.Join(item.TechnicalTags, " "),
+				item.Content,
+			}, " ")
+			
+			if fuzzyMatch(f.searchInput, searchText) {
+				filtered = append(filtered, item)
+			}
+		}
+	}
+	
+	// Sort by newest first (most recent updated_at or created_at)
+	sort.Slice(filtered, func(i, j int) bool {
+		// For CLOSED items, prefer CompletedAt if available
+		if schedule == models.ScheduleClosed {
+			if filtered[i].CompletedAt != nil && filtered[j].CompletedAt != nil {
+				return filtered[i].CompletedAt.After(*filtered[j].CompletedAt)
+			}
+		}
+		
+		// Otherwise use UpdatedAt
+		return filtered[i].UpdatedAt.After(filtered[j].UpdatedAt)
+	})
+	
+	f.filteredItems = filtered
 }
 
 func (f *FancyListView) prevTab() {

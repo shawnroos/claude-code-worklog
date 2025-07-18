@@ -2,6 +2,16 @@
 
 An intelligent work tracking system that seamlessly integrates with Claude Code to provide persistent memory, automatic context management, and smart work relationships across coding sessions.
 
+## 🎨 Terminal UI Available!
+
+The project now includes a powerful TUI (Terminal User Interface) for managing work items:
+- **4-tab interface**: NOW, NEXT, LATER, CLOSED
+- **Search & filter**: Fuzzy search with `/`
+- **Quick actions**: Complete (`c`) or cancel (`x`) items
+- **Multi-worktree**: See all work across branches
+
+See [claude-work-tracker-ui/README.md](./claude-work-tracker-ui/README.md) for details.
+
 ## 🎯 What It Does
 
 Claude Work Tracker solves the fundamental problem of context loss between AI coding sessions. It automatically:
