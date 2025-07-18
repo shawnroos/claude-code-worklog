@@ -221,3 +221,13 @@ func (s *ProjectScanner) findMainRepositoryFromWorktree(gitFilePath string) stri
 	}
 	return ""
 }
+
+// GetAbsoluteProjectRoot returns the absolute project root, handling worktrees properly
+func (s *ProjectScanner) GetAbsoluteProjectRoot() string {
+	// If we're in a worktree, the project root should be the main repository
+	if s.projectRoot != "" {
+		return s.projectRoot
+	}
+	// Fallback to current directory
+	return s.currentDir
+}

@@ -45,18 +45,17 @@ func NewClient() *Client {
 	// Always use the project root .claude-work directory for global project state
 	// This ensures the TUI shows the same view regardless of where it's run from
 	scanner := NewProjectScanner()
-	projectRoot := scanner.GetProjectRoot()
+	projectRoot := scanner.GetAbsoluteProjectRoot()
 	
-	// Primary work directory is always at project root for global state
+	// CRITICAL: Primary work directory must ALWAYS be at the absolute project root
+	// Never allow subdirectories or worktrees to create their own .claude-work
 	primaryWorkDir := filepath.Join(projectRoot, ".claude-work")
 	
 	// Create the directory if it doesn't exist
 	if err := os.MkdirAll(primaryWorkDir, 0755); err != nil {
-		// Fallback to scanner's primary directory if we can't create at project root
-		primaryWorkDir = scanner.GetPrimaryWorkDirectory()
-		if primaryWorkDir == "" {
-			primaryWorkDir = filepath.Join(projectRoot, ".claude-work")
-		}
+		// If we can't create at project root, something is seriously wrong
+		// Log the error but continue with the path (it might be read-only)
+		fmt.Fprintf(os.Stderr, "Warning: Could not create .claude-work at project root %s: %v\n", projectRoot, err)
 	}
 
 	baseDir := filepath.Join(homeDir, ".claude")

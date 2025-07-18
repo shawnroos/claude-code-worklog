@@ -8,6 +8,8 @@ type GitContext struct {
 	Worktree         string `json:"worktree"`
 	RemoteURL        string `json:"remote_url,omitempty"`
 	WorkingDirectory string `json:"working_directory"`
+	ProjectID        string `json:"project_id,omitempty"`        // External storage project ID
+	ProjectPath      string `json:"project_path,omitempty"`      // Absolute path to project root
 }
 
 // SimilarityMetadata represents metadata for similarity matching
