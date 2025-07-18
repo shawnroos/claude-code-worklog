@@ -852,6 +852,23 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if workItem, ok := selectedItem.(WorkItem); ok {
 						f.selectedItem = workItem.Work
 						f.showFullPost = true
+						
+						// Update viewport dimensions for full post view
+						// Account for margins and borders
+						viewportWidth := f.width - 4   // Reserve space for side margins
+						viewportHeight := f.height - 6 // Reserve space for pagination, help, and margins
+						
+						// Ensure minimum sizes
+						if viewportHeight < 5 {
+							viewportHeight = 5
+						}
+						if viewportWidth < 20 {
+							viewportWidth = 20
+						}
+						
+						f.viewport.Width = viewportWidth
+						f.viewport.Height = viewportHeight
+						
 						f.updateViewportContent() // Load content into viewport
 						
 						// Auto-start loading embeddings if the item has them
@@ -1495,7 +1512,7 @@ func (f *FancyListView) updateViewportContent() {
 	}
 
 	// Generate cache key
-	glamourWidth := f.viewport.Width - 4
+	glamourWidth := f.viewport.Width - 2 // Just 2 for inner padding
 	if glamourWidth < 20 {
 		glamourWidth = 20
 	}
@@ -1550,19 +1567,11 @@ func (f *FancyListView) updateViewportContent() {
 				processedContent = f.markdownProcessor.ProcessForLightRendering(fullContent)
 			}
 			
-			// Render with Glamour using cached renderer if possible
-			var renderer *glamour.TermRenderer
-			var err error
-			
-			// Use existing glamour renderer if available and width matches
-			if f.glamour != nil {
-				renderer = f.glamour
-			} else {
-				renderer, err = glamour.NewTermRenderer(
-					glamour.WithAutoStyle(),
-					glamour.WithWordWrap(glamourWidth),
-				)
-			}
+			// Render with Glamour - always create new renderer with correct width
+			renderer, err := glamour.NewTermRenderer(
+				glamour.WithAutoStyle(),
+				glamour.WithWordWrap(glamourWidth),
+			)
 			
 			if err == nil {
 				if rendered, err := renderer.Render(processedContent); err == nil {
@@ -1843,7 +1852,7 @@ func (f *FancyListView) updateViewportContentWithEmbeddings() {
 	item := f.selectedItem
 	
 	// Generate cache key including embedding state
-	glamourWidth := f.viewport.Width - 4
+	glamourWidth := f.viewport.Width - 2 // Just 2 for inner padding
 	if glamourWidth < 20 {
 		glamourWidth = 20
 	}
@@ -1878,7 +1887,7 @@ func (f *FancyListView) updateViewportContentWithEmbeddings() {
 	// Process content with loaded embeddings and loading spinners
 	processedContent := f.markdownProcessor.ProcessWithAsyncEmbeddings(fullContent, loadedEmbeddings, loadingStates)
 	
-	// Render with Glamour
+	// Render with Glamour - create new renderer with correct width
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 		glamour.WithWordWrap(glamourWidth),
