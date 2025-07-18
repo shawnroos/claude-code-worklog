@@ -5,10 +5,11 @@
 2. [Understanding the Interface](#understanding-the-interface)
 3. [Managing Work Items](#managing-work-items)
 4. [Search and Filter](#search-and-filter)
-5. [Keyboard Shortcuts Reference](#keyboard-shortcuts-reference)
-6. [Work Item Lifecycle](#work-item-lifecycle)
-7. [Best Practices](#best-practices)
-8. [Tips and Tricks](#tips-and-tricks)
+5. [🤖 Automation Features](#automation-features)
+6. [Keyboard Shortcuts Reference](#keyboard-shortcuts-reference)
+7. [Work Item Lifecycle](#work-item-lifecycle)
+8. [Best Practices](#best-practices)
+9. [Tips and Tricks](#tips-and-tricks)
 
 ## Getting Started
 
@@ -38,10 +39,19 @@ Work items follow a natural progression:
 ### Work Item Display
 Each item shows:
 ```
-IN_PROGRESS  Implement user authentication              
+IN_PROGRESS  Implement user authentication  ◉ ▶ ⎇
 Backend work for secure login system
 progress:60% • tags: auth, security • branch:main • updated: 2h ago
 ```
+
+**Automation Indicators:**
+- ◉ Auto-transitioned item
+- ◎ Pending transition (needs confirmation)
+- ⊘ Blocked item
+- ▶ Focus mode (high activity)
+- ⚠ Inactivity warning
+- ▰▰▰ Activity level bars
+- ⎇ Git-linked item
 
 ### Search Bar
 When active (press `/`):
@@ -102,6 +112,58 @@ mv .claude-work/work/now/item.md .claude-work/work/next/
 - `todo` - Find items with TODO markers
 - Tag names like `frontend`, `api`, etc.
 
+## 🤖 Automation Features
+
+### Intelligent Status Transitions
+
+The work tracker automatically manages item lifecycles based on:
+
+#### Progress Milestones
+- **0% → Draft**: New items start as drafts
+- **>0% → Active**: Items become active when progress starts
+- **>20% → In Progress**: Significant progress triggers active development
+- **100% → Completed**: Items complete automatically at full progress
+
+#### Activity Detection
+- **Focus Sessions**: High activity (multiple edits/commits) detected
+- **Inactivity Warnings**: Items stale for >48 hours show warnings
+- **Decay Prevention**: Suggests moving inactive items to appropriate schedules
+
+#### Git Integration
+- **Branch Tracking**: Work items automatically link to Git branches
+- **Commit Activity**: Code changes update activity scores
+- **Context Sync**: Git metadata (branch, worktree) auto-updates
+
+### Manual Control
+
+#### Automation Configuration
+Access via `ctrl+a` (future feature):
+- **Transition Thresholds**: Customize progress and time limits
+- **Activity Settings**: Configure focus session parameters
+- **Git Integration**: Enable/disable workflow tracking
+- **Confirmation Rules**: Set which transitions require approval
+
+#### Action Menu
+Right-click or action menu (future feature):
+- **Confirm Transitions**: Approve pending automated changes
+- **Reject Transitions**: Keep current status
+- **Manual Overrides**: Force status or schedule changes
+- **Clear Automation**: Remove automation flags
+
+### User Control Principles
+
+1. **NOW Transitions**: Always require explicit confirmation
+2. **Audit Trail**: All changes logged with timestamps
+3. **Override Options**: Manual control always available
+4. **Disable Per Item**: Turn off automation for specific items
+
+### Visual Feedback
+
+Automation status is shown through Unicode indicators:
+- See visual indicators in work item display above
+- Hover/select for detailed tooltips
+- Legend available via `ctrl+h` (future feature)
+
 ## Keyboard Shortcuts Reference
 
 ### Navigation
@@ -122,6 +184,9 @@ mv .claude-work/work/now/item.md .claude-work/work/next/
 | `x` | Cancel item | NOW tab only |
 | `d` | Toggle detail view | List view |
 | `/` | Search | Any tab |
+| `ctrl+a` | Automation config | Future feature |
+| `ctrl+r` | Run automation rules | Future feature |
+| `ctrl+h` | Toggle automation legend | Future feature |
 
 ### In Detail View
 | Key | Action |
