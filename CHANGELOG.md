@@ -5,6 +5,37 @@ All notable changes to the Claude Code Work Tracking System will be documented i
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-01-18
+
+### Added
+- **🤖 Intelligent Automation System** - Comprehensive work item automation framework
+  - **Hook System** - Event-driven architecture for extensible automation
+  - **Transition Rules Engine** - Automatic status transitions based on progress and activity
+  - **Git Integration** - Automatic Git context updates and workflow awareness
+  - **Activity Detection** - Focus session tracking and intelligent activity analysis
+  - **Visual Indicators** - Unicode-based automation status display (◉◎⊘▶⚠▰⎇)
+  - **Configuration Interface** - Bubble Tea-based automation settings UI
+  - **Action Menu** - Manual override controls for all automation features
+
+#### Automation Features
+- **Progress-Based Transitions** - draft → active → in_progress → completed
+- **Activity-Based Intelligence** - Focus detection and inactivity warnings
+- **Git-Driven Automation** - Branch tracking, commit integration, context sync
+- **User Control Principles** - NOW transitions require confirmation, full manual override
+- **Audit Trail** - Complete automation history with timestamps and reasons
+
+#### Documentation Updates
+- **Comprehensive README** - Updated with automation features and visual indicators
+- **Enhanced User Guide** - Detailed automation workflows and configuration
+- **Quick Reference** - Automation indicators and keyboard shortcuts
+- **Future Vision** - Roadmap for ML/AI, team collaboration, and enterprise features
+
+### Technical Implementation
+- **10 New Components** - 2,696 lines of production-ready automation code
+- **Non-Breaking Design** - Extends existing functionality without disruption
+- **Extensible Architecture** - Hook system allows custom automation rules
+- **Unicode-Based UI** - Professional appearance with no emojis
+
 ## [1.0.0] - 2024-01-11
 
 ### Added
