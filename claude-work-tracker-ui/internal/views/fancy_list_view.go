@@ -3,6 +3,7 @@ package views
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -413,7 +414,8 @@ func NewFancyListView(dataClient *data.EnhancedClient) *FancyListView {
 	
 	workList := list.New([]list.Item{}, delegate, 0, 0)
 	workList.SetShowStatusBar(false)
-	workList.SetShowPagination(true)  // Enable pagination to handle overflow
+	workList.SetShowTitle(false)
+	workList.SetShowPagination(false)  // Disable pagination - we'll handle it ourselves
 	workList.SetShowHelp(false)
 	workList.SetFilteringEnabled(false)
 	workList.Styles.Title = lipgloss.NewStyle() // Remove default title styling
@@ -468,6 +470,7 @@ func NewFancyListView(dataClient *data.EnhancedClient) *FancyListView {
 		embeddedCache:     make(map[string]string),
 		embeddingStates:   make(map[string]embeddingState),
 		lastWidth:         0,
+		ready:             false,
 	}
 }
 
@@ -493,11 +496,12 @@ func NewFancyListViewWithAdapter(dataProvider WorkDataProvider) *FancyListView {
 		glamour:    glamourRenderer,
 	}
 	workList := list.New([]list.Item{}, delegate, 0, 0)
-	workList.Title = "Work Tracker"
-	workList.Styles.Title = lipgloss.NewStyle().
-		Background(lipgloss.Color("56")).
-		Foreground(lipgloss.Color("229")).
-		Padding(0, 1)
+	workList.SetShowStatusBar(false)
+	workList.SetShowTitle(false)
+	workList.SetShowPagination(false)  // Disable pagination - we'll handle it ourselves
+	workList.SetShowHelp(false)
+	workList.SetFilteringEnabled(false)
+	workList.Styles.Title = lipgloss.NewStyle() // Remove default title styling
 
 	// Create viewport for detailed view
 	vp := viewport.New(0, 0)
@@ -549,14 +553,19 @@ func NewFancyListViewWithAdapter(dataProvider WorkDataProvider) *FancyListView {
 		embeddedCache:     make(map[string]string),
 		embeddingStates:   make(map[string]embeddingState),
 		lastWidth:         0,
+		ready:             false,
 	}
 }
 
 func (f *FancyListView) Init() tea.Cmd {
-	return f.loadWorkItems()
+	log.Printf("FancyListView.Init() called")
+	cmd := f.loadWorkItems()
+	log.Printf("FancyListView.Init() returning loadWorkItems command")
+	return cmd
 }
 
 func (f *FancyListView) loadWorkItems() tea.Cmd {
+	log.Printf("FancyListView.loadWorkItems() called")
 	return tea.Batch(
 		f.loadScheduleItems(models.ScheduleNow),
 		f.loadScheduleItems(models.ScheduleNext),
@@ -566,12 +575,15 @@ func (f *FancyListView) loadWorkItems() tea.Cmd {
 }
 
 func (f *FancyListView) loadScheduleItems(schedule string) tea.Cmd {
+	log.Printf("loadScheduleItems creating command for schedule %s", schedule)
 	return func() tea.Msg {
+		log.Printf("loadScheduleItems executing: Loading items for schedule %s", schedule)
 		var items []*models.Work
 		var err error
 		
 		// Use data provider if available, otherwise fall back to dataClient
 		if f.dataProvider != nil {
+			log.Printf("loadScheduleItems: Using dataProvider for %s", schedule)
 			items, err = f.dataProvider.GetWorkBySchedule(schedule)
 		} else if f.dataClient != nil {
 			items, err = f.dataClient.GetWorkBySchedule(schedule)
@@ -585,7 +597,7 @@ func (f *FancyListView) loadScheduleItems(schedule string) tea.Cmd {
 			return errMsg{err: err}
 		}
 		// Debug: log successful load
-		// log.Printf("Loaded %d items for %s", len(items), schedule)
+		log.Printf("Loaded %d items for %s", len(items), schedule)
 		return scheduleItemsLoadedMsg{schedule: schedule, items: items}
 	}
 }
@@ -674,12 +686,15 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case scheduleItemsLoadedMsg:
+		log.Printf("scheduleItemsLoadedMsg: Received %d items for schedule %s", len(msg.items), msg.schedule)
 		f.workItems[msg.schedule] = msg.items
 		if !f.ready {
 			f.ready = true
+			log.Printf("scheduleItemsLoadedMsg: Setting ready=true")
 			// Update list immediately when we become ready
 			f.updateListItems()
 		} else if msg.schedule == f.getCurrentSchedule() {
+			log.Printf("scheduleItemsLoadedMsg: Updating current schedule")
 			f.updateListItems()
 		}
 
@@ -880,29 +895,27 @@ func (f *FancyListView) View() string {
 
 // renderSearchBar renders the search input bar
 func (f *FancyListView) renderSearchBar() string {
+	// Style matching the image - clean border with padding
 	searchStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(fancyHighlightColor).
-		BorderTop(false).
-		BorderBottom(false).
-		Padding(0, 1).
-		Width(f.width - 2)
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Padding(0, 2).
+		Width(f.width - 4)
 	
 	var searchContent string
 	if f.searchMode {
-		// Show active search input with cursor
-		searchContent = fmt.Sprintf("🔍 Search: %s│", f.searchInput)
+		// Show active search input with blinking cursor
+		cursor := "▏" // Thin blinking cursor
+		searchContent = fmt.Sprintf("🔍  %s%s", f.searchInput, cursor)
 	} else if f.searchInput != "" {
-		// Show search results count with better feedback
+		// Show search results count with cleaner feedback
 		resultCount := len(f.filteredItems)
 		totalCount := len(f.workItems[f.getCurrentSchedule()])
 		
 		if resultCount == 0 {
-			searchContent = fmt.Sprintf("🔍 \"%s\" - No matches found. Press / to search again or ESC to clear", f.searchInput)
-		} else if resultCount == totalCount {
-			searchContent = fmt.Sprintf("🔍 \"%s\" - All items match. Press / to refine search or ESC to clear", f.searchInput)
+			searchContent = fmt.Sprintf("🔍  \"%s\" - No matches (ESC to clear)", f.searchInput)
 		} else {
-			searchContent = fmt.Sprintf("🔍 \"%s\" - Showing %d of %d items. Press / to refine or ESC to clear", 
+			searchContent = fmt.Sprintf("🔍  \"%s\" - %d/%d items", 
 				f.searchInput, resultCount, totalCount)
 		}
 	}
@@ -965,7 +978,7 @@ func (f *FancyListView) renderConnectedList() string {
 	
 	// Account for search bar if visible
 	if f.searchMode || f.searchInput != "" {
-		maxHeight -= 3 // Search bar takes 3 lines
+		maxHeight -= 2 // Search bar takes 2 lines (no margins)
 	}
 	
 	if maxHeight < 5 {

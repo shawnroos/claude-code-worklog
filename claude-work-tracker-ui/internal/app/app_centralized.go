@@ -40,8 +40,11 @@ func NewCentralizedApp() (*CentralizedApp, error) {
 	log.Printf("Work directory: %s", client.GetWorkDir())
 
 	// Create fancy list view with work adapter
+	log.Printf("Creating CentralizedWorkAdapter")
 	adapter := &CentralizedWorkAdapter{client: client}
+	log.Printf("Creating FancyListView with adapter")
 	fancyListView := views.NewFancyListViewWithAdapter(adapter)
+	log.Printf("FancyListView created")
 
 	// Create project switcher
 	projectSwitcher := NewProjectSwitcherModel(client)
@@ -63,7 +66,10 @@ func NewCentralizedApp() (*CentralizedApp, error) {
 }
 
 func (a *CentralizedApp) Init() tea.Cmd {
-	return a.fancyListView.Init()
+	log.Printf("CentralizedApp.Init() called")
+	cmd := a.fancyListView.Init()
+	log.Printf("CentralizedApp.Init() returning command")
+	return cmd
 }
 
 func (a *CentralizedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

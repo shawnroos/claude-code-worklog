@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -458,13 +459,13 @@ func (m *MarkdownIO) generateWorkFilename(work *models.Work) string {
 func (m *MarkdownIO) getWorkDirectory(schedule string) string {
 	switch schedule {
 	case models.ScheduleNow:
-		return filepath.Join(m.baseDir, "work", "now")
+		return filepath.Join(m.baseDir, "now")
 	case models.ScheduleNext:
-		return filepath.Join(m.baseDir, "work", "next")
+		return filepath.Join(m.baseDir, "next")
 	case models.ScheduleLater:
-		return filepath.Join(m.baseDir, "work", "later")
+		return filepath.Join(m.baseDir, "later")
 	case models.ScheduleClosed:
-		return filepath.Join(m.baseDir, "work", "closed")
+		return filepath.Join(m.baseDir, "closed")
 	default:
 		return filepath.Join(m.baseDir, "work", "unscheduled")
 	}
@@ -645,14 +646,17 @@ func (m *MarkdownIO) ListAllWork() ([]*models.Work, error) {
 
 // listWorkFromDir reads all Work markdown files from a directory
 func (m *MarkdownIO) listWorkFromDir(dir string) ([]*models.Work, error) {
+	log.Printf("listWorkFromDir: Reading directory: %s", dir)
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
+			log.Printf("listWorkFromDir: Directory does not exist: %s", dir)
 			return []*models.Work{}, nil
 		}
 		return nil, fmt.Errorf("failed to read directory: %w", err)
 	}
 
+	log.Printf("listWorkFromDir: Found %d files in %s", len(files), dir)
 	var items []*models.Work
 	for _, file := range files {
 		if !strings.HasSuffix(file.Name(), ".md") {
@@ -660,14 +664,18 @@ func (m *MarkdownIO) listWorkFromDir(dir string) ([]*models.Work, error) {
 		}
 
 		filepath := filepath.Join(dir, file.Name())
+		log.Printf("listWorkFromDir: Reading file: %s", filepath)
 		work, err := m.ReadWork(filepath)
 		if err != nil {
+			log.Printf("listWorkFromDir: Error reading %s: %v", filepath, err)
 			continue // Skip files that can't be parsed
 		}
 
+		log.Printf("listWorkFromDir: Successfully parsed work item: %s", work.Title)
 		items = append(items, work)
 	}
 
+	log.Printf("listWorkFromDir: Returning %d work items", len(items))
 	return items, nil
 }
 
