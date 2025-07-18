@@ -9,14 +9,20 @@ A powerful terminal user interface for managing work items, tasks, and project a
 - **Project-Wide Scanning**: Automatically discovers and aggregates work from all `.claude-work` directories
 - **Multi-Worktree Support**: See work items from all git worktrees in one unified view
 - **Real-Time Updates**: File watcher automatically refreshes UI when work items change
+- **🤖 Intelligent Automation**: Automatic status transitions based on progress, activity, and Git workflow
 
 ### Work Management
 - **Smart Scheduling**: Items organized by NOW (active), NEXT (queued), LATER (backlog), CLOSED (completed)
+- **Intelligent Transitions**: Automatic status changes based on:
+  - Progress milestones (draft → active → in_progress → completed)
+  - Activity patterns and focus sessions
+  - Git workflow events (commits, branches, PRs)
+  - Inactivity detection and decay prevention
 - **Quick Actions**: 
   - Press `c` to complete a work item
   - Press `x` to cancel a work item
   - Items automatically move to CLOSED with proper timestamps
-- **Status Tracking**: Visual indicators for work status (in_progress, completed, canceled, etc.)
+- **Status Tracking**: Visual indicators for work status with automation flags
 
 ### Search & Navigation
 - **Fuzzy Search**: Press `/` to search across title, description, tags, and content
@@ -30,6 +36,14 @@ A powerful terminal user interface for managing work items, tasks, and project a
   - 📦 Gray for archived
 - **Progress Indicators**: See completion percentage for each work item
 - **Git Context**: Shows branch and worktree information
+- **Automation Indicators**: Unicode symbols show automation status:
+  - ◉ Auto-transitioned items
+  - ◎ Pending transitions (require confirmation)
+  - ⊘ Blocked items
+  - ▶ Focus mode (high activity)
+  - ⚠ Inactivity warnings
+  - ▰▰▰ Activity levels
+  - ⎇ Git-linked items
 - **Responsive Design**: Adapts to terminal size changes
 
 ## 📦 Installation
@@ -80,6 +94,11 @@ cw
 - Type to filter in real-time
 - `Enter` - Confirm search
 - `Esc` - Clear search
+
+#### Automation & Configuration
+- `ctrl+a` - Open automation configuration
+- `ctrl+r` - Run automation rules manually
+- `ctrl+h` - Toggle automation help/legend
 
 ## 📁 Directory Structure
 
@@ -153,6 +172,42 @@ Work items show status badges:
 - `CANCELED` - Stopped work
 - Priority levels (HIGH/MEDIUM/LOW)
 
+## 🤖 Intelligent Automation
+
+### Automatic Status Transitions
+
+The work tracker intelligently manages work item lifecycles:
+
+#### Progress-Based Transitions
+- **Draft → Active**: When progress > 0%
+- **Active → In Progress**: When progress > 20%
+- **In Progress → Completed**: When progress reaches 100%
+
+#### Activity-Based Transitions
+- **Focus Detection**: High activity triggers priority updates
+- **Inactivity Warnings**: Items stale for >48 hours show warnings
+- **Decay Prevention**: Stale items suggest schedule changes
+
+#### Git-Driven Automation
+- **Branch Tracking**: Items automatically link to Git branches
+- **Commit Integration**: Code changes update activity scores
+- **Context Synchronization**: Git metadata auto-updates
+
+### Automation Configuration
+
+Access automation settings via `ctrl+a`:
+- **Transition Thresholds**: Customize progress and time limits
+- **Activity Detection**: Configure focus session parameters
+- **Git Integration**: Enable/disable Git workflow tracking
+- **Confirmation Rules**: Set which transitions require approval
+
+### User Control
+
+- **NOW Transitions**: Always require explicit user confirmation
+- **Manual Overrides**: Action menu provides manual control
+- **Disable Options**: Turn off automation per work item
+- **Audit Trail**: All transitions logged with timestamps
+
 ## 🔄 Auto-Migration
 
 When completing or canceling items:
@@ -180,6 +235,12 @@ This keeps your work directories clean and organized.
 - Ensure PATH includes correct directory
 - Rebuild with `go build -o cw .`
 
+### Automation not working
+- Check automation is enabled in settings (`ctrl+a`)
+- Verify work item has required metadata fields
+- Look for automation indicators (◉◎⊘) in the UI
+- Check Git context is properly detected
+
 ## 🚀 Advanced Features
 
 ### Project-Wide Scanning
@@ -199,6 +260,14 @@ The CLOSED tab intelligently filters:
 - Scans all directories (now/next/later)
 - Shows only completed/canceled/archived items
 - Maintains original directory context
+
+### Automation Engine
+Advanced automation capabilities:
+- **Hook System**: Event-driven architecture for extensibility
+- **Rule Engine**: Priority-based transition rules
+- **Activity Analysis**: Focus session detection and intensity tracking
+- **Git Integration**: Branch, commit, and PR workflow awareness
+- **Future Vision**: Machine learning, team collaboration, and enterprise features
 
 ## 📝 License
 

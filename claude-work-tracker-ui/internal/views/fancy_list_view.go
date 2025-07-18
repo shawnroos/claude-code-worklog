@@ -150,8 +150,20 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		statusBadge = statusStyle.Render(badgeText)
 	}
 	
-	// Title line with status badge + title
-	titleLine := lipgloss.JoinHorizontal(lipgloss.Center, statusBadge, " ", titleStyle.Render(item.Title))
+	// Get automation indicators
+	indicators := DefaultAutomationIndicators()
+	automationIndicators := indicators.GetWorkItemIndicators(item)
+	
+	// Title line with status badge + title + automation indicators
+	var titleParts []string
+	titleParts = append(titleParts, statusBadge)
+	titleParts = append(titleParts, " ")
+	titleParts = append(titleParts, titleStyle.Render(item.Title))
+	if automationIndicators != "" {
+		titleParts = append(titleParts, " ")
+		titleParts = append(titleParts, automationIndicators)
+	}
+	titleLine := lipgloss.JoinHorizontal(lipgloss.Center, titleParts...)
 
 	content := titleLine
 
@@ -233,6 +245,7 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 // FancyListView provides a list-based interface for work items
 type FancyListView struct {
 	dataClient       *data.EnhancedClient
+	dataProvider     WorkDataProvider // Alternative data source
 	list             list.Model
 	tabs             []Tab
 	activeTab        int
@@ -273,6 +286,8 @@ type embeddingLoadedMsg struct {
 	err       error
 }
 
+// errMsg is already defined in other files, remove duplicate
+
 type FancyKeyMap struct {
 	NextTab       key.Binding
 	PrevTab       key.Binding
@@ -285,6 +300,9 @@ type FancyKeyMap struct {
 	CancelItem    key.Binding
 	Search        key.Binding
 	ClearSearch   key.Binding
+	AutomationConfig key.Binding
+	RunAutomation    key.Binding
+	AutomationHelp   key.Binding
 	Quit          key.Binding
 }
 
@@ -333,6 +351,18 @@ func DefaultFancyKeyMap() FancyKeyMap {
 		ClearSearch: key.NewBinding(
 			key.WithKeys("esc"),
 			key.WithHelp("esc", "clear search"),
+		),
+		AutomationConfig: key.NewBinding(
+			key.WithKeys("ctrl+a"),
+			key.WithHelp("ctrl+a", "automation config"),
+		),
+		RunAutomation: key.NewBinding(
+			key.WithKeys("ctrl+r"),
+			key.WithHelp("ctrl+r", "run automation"),
+		),
+		AutomationHelp: key.NewBinding(
+			key.WithKeys("ctrl+h"),
+			key.WithHelp("ctrl+h", "automation help"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
@@ -441,6 +471,87 @@ func NewFancyListView(dataClient *data.EnhancedClient) *FancyListView {
 	}
 }
 
+// NewFancyListViewWithAdapter creates a new FancyListView with a custom data provider
+func NewFancyListViewWithAdapter(dataProvider WorkDataProvider) *FancyListView {
+	// Initialize glamour renderer
+	glamourRenderer, _ := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(60),
+	)
+
+	// Create tabs
+	tabs := []Tab{
+		{Name: "NOW", Schedule: models.ScheduleNow},
+		{Name: "NEXT", Schedule: models.ScheduleNext},
+		{Name: "LATER", Schedule: models.ScheduleLater},
+		{Name: "CLOSED", Schedule: models.ScheduleClosed},
+	}
+
+	// Create list with delegate
+	delegate := &ItemDelegate{
+		showDetail: true,
+		glamour:    glamourRenderer,
+	}
+	workList := list.New([]list.Item{}, delegate, 0, 0)
+	workList.Title = "Work Tracker"
+	workList.Styles.Title = lipgloss.NewStyle().
+		Background(lipgloss.Color("56")).
+		Foreground(lipgloss.Color("229")).
+		Padding(0, 1)
+
+	// Create viewport for detailed view
+	vp := viewport.New(0, 0)
+	vp.KeyMap = viewport.KeyMap{
+		PageDown: key.NewBinding(
+			key.WithKeys("pgdown"),
+			key.WithHelp("pgdn", "page down"),
+		),
+		PageUp: key.NewBinding(
+			key.WithKeys("pgup"),
+			key.WithHelp("pgup", "page up"),
+		),
+		HalfPageUp: key.NewBinding(
+			key.WithKeys("ctrl+u"),
+			key.WithHelp("ctrl+u", "½ page up"),
+		),
+		HalfPageDown: key.NewBinding(
+			key.WithKeys("ctrl+d"),
+			key.WithHelp("ctrl+d", "½ page down"),
+		),
+		Up: key.NewBinding(
+			key.WithKeys("up", "k"),
+			key.WithHelp("↑/k", "up"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("down", "j"),
+			key.WithHelp("↓/j", "down"),
+		),
+	}
+
+	// For now, use a dummy work directory
+	// TODO: Get this from the data provider if needed
+	markdownProcessor := renderer.NewMarkdownProcessor("/tmp")
+
+	return &FancyListView{
+		dataProvider:      dataProvider,
+		list:              workList,
+		tabs:              tabs,
+		activeTab:         0,
+		workItems:         make(map[string][]*models.Work),
+		glamour:           glamourRenderer,
+		markdownProcessor: markdownProcessor,
+		showDetail:        true,
+		showFullPost:      false,
+		selectedItem:      nil,
+		viewport:          vp,
+		keys:              DefaultFancyKeyMap(),
+		renderCache:       make(map[string]string),
+		embeddedCache:     make(map[string]string),
+		embeddingStates:   make(map[string]embeddingState),
+		lastWidth:         0,
+	}
+}
+
 func (f *FancyListView) Init() tea.Cmd {
 	return f.loadWorkItems()
 }
@@ -456,7 +567,18 @@ func (f *FancyListView) loadWorkItems() tea.Cmd {
 
 func (f *FancyListView) loadScheduleItems(schedule string) tea.Cmd {
 	return func() tea.Msg {
-		items, err := f.dataClient.GetWorkBySchedule(schedule)
+		var items []*models.Work
+		var err error
+		
+		// Use data provider if available, otherwise fall back to dataClient
+		if f.dataProvider != nil {
+			items, err = f.dataProvider.GetWorkBySchedule(schedule)
+		} else if f.dataClient != nil {
+			items, err = f.dataClient.GetWorkBySchedule(schedule)
+		} else {
+			return errMsg{err: fmt.Errorf("no data source configured")}
+		}
+		
 		if err != nil {
 			// Debug: log the error
 			// log.Printf("Error loading %s items: %v", schedule, err)
@@ -469,9 +591,22 @@ func (f *FancyListView) loadScheduleItems(schedule string) tea.Cmd {
 }
 
 func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Add panic recovery
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("PANIC in FancyListView.Update: %v\n", r)
+		}
+	}()
+	
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
+	case errMsg:
+		// Handle error messages from async operations
+		// For now, silently continue
+		// TODO: Show error to user in a proper way
+		return f, nil
+		
 	case tea.WindowSizeMsg:
 		// Always update dimensions
 		f.width = msg.Width
@@ -572,9 +707,13 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.KeyMsg:
-		// Handle global quit key first
-		if key.Matches(msg, f.keys.Quit) {
+		// Handle specific keys that might conflict
+		switch msg.String() {
+		case "q":
 			return f, tea.Quit
+		case "ctrl+c":
+			return f, tea.Quit
+		// Remove the 'c' case to let it be handled by key.Matches below
 		}
 
 		if f.showFullPost {
@@ -652,19 +791,34 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			case key.Matches(msg, f.keys.CompleteItem):
-				if selectedItem := f.list.SelectedItem(); selectedItem != nil {
-					if workItem, ok := selectedItem.(WorkItem); ok {
-						// Mark item as completed and move to CLOSED
-						return f, f.completeWorkItem(workItem.Work)
+				// Only allow completing items in the NOW tab
+				if f.getCurrentSchedule() == models.ScheduleNow {
+					if selectedItem := f.list.SelectedItem(); selectedItem != nil {
+						if workItem, ok := selectedItem.(WorkItem); ok && workItem.Work != nil {
+							// Mark item as completed and move to CLOSED
+							return f, f.completeWorkItem(workItem.Work)
+						}
 					}
 				}
 			case key.Matches(msg, f.keys.CancelItem):
-				if selectedItem := f.list.SelectedItem(); selectedItem != nil {
-					if workItem, ok := selectedItem.(WorkItem); ok {
-						// Mark item as canceled and move to CLOSED
-						return f, f.cancelWorkItem(workItem.Work)
+				// Only allow canceling items in the NOW tab
+				if f.getCurrentSchedule() == models.ScheduleNow {
+					if selectedItem := f.list.SelectedItem(); selectedItem != nil {
+						if workItem, ok := selectedItem.(WorkItem); ok && workItem.Work != nil {
+							// Mark item as canceled and move to CLOSED
+							return f, f.cancelWorkItem(workItem.Work)
+						}
 					}
 				}
+			case key.Matches(msg, f.keys.AutomationConfig):
+				// TODO: Open automation configuration view
+				// This will be implemented when the automation config view is integrated
+			case key.Matches(msg, f.keys.RunAutomation):
+				// TODO: Trigger automation rules manually
+				// This will be implemented when the automation system is integrated
+			case key.Matches(msg, f.keys.AutomationHelp):
+				// TODO: Show automation help/legend
+				// This will be implemented when the automation help system is integrated
 			default:
 				// Let the list handle up/down arrow keys and other navigation
 				f.list, cmd = f.list.Update(msg)
@@ -739,11 +893,18 @@ func (f *FancyListView) renderSearchBar() string {
 		// Show active search input with cursor
 		searchContent = fmt.Sprintf("🔍 Search: %s│", f.searchInput)
 	} else if f.searchInput != "" {
-		// Show search results count
+		// Show search results count with better feedback
 		resultCount := len(f.filteredItems)
 		totalCount := len(f.workItems[f.getCurrentSchedule()])
-		searchContent = fmt.Sprintf("🔍 \"%s\" (%d/%d results) - Press / to search again", 
-			f.searchInput, resultCount, totalCount)
+		
+		if resultCount == 0 {
+			searchContent = fmt.Sprintf("🔍 \"%s\" - No matches found. Press / to search again or ESC to clear", f.searchInput)
+		} else if resultCount == totalCount {
+			searchContent = fmt.Sprintf("🔍 \"%s\" - All items match. Press / to refine search or ESC to clear", f.searchInput)
+		} else {
+			searchContent = fmt.Sprintf("🔍 \"%s\" - Showing %d of %d items. Press / to refine or ESC to clear", 
+				f.searchInput, resultCount, totalCount)
+		}
 	}
 	
 	return searchStyle.Render(searchContent)
@@ -971,6 +1132,19 @@ func (f *FancyListView) updateDelegate() {
 // completeWorkItem marks a work item as completed and moves it to CLOSED
 func (f *FancyListView) completeWorkItem(item *models.Work) tea.Cmd {
 	return func() tea.Msg {
+		// Validate inputs to prevent panic
+		if item == nil {
+			return errMsg{err: fmt.Errorf("cannot complete nil work item")}
+		}
+		
+		// Check dataClient
+		if f.dataClient == nil {
+			return errMsg{err: fmt.Errorf("dataClient is nil - cannot complete work item")}
+		}
+		
+		// Metadata is a struct, not a pointer, so it can't be nil
+		// Just ensure the item has basic required fields
+		
 		// Update the item's status and schedule
 		item.Metadata.Status = models.WorkStatusCompleted
 		item.CompletedAt = func() *time.Time { t := time.Now(); return &t }()
@@ -1012,6 +1186,19 @@ func (f *FancyListView) completeWorkItem(item *models.Work) tea.Cmd {
 // cancelWorkItem marks a work item as canceled and moves it to CLOSED
 func (f *FancyListView) cancelWorkItem(item *models.Work) tea.Cmd {
 	return func() tea.Msg {
+		// Validate inputs to prevent panic
+		if item == nil {
+			return errMsg{err: fmt.Errorf("cannot cancel nil work item")}
+		}
+		
+		// Check dataClient
+		if f.dataClient == nil {
+			return errMsg{err: fmt.Errorf("dataClient is nil - cannot cancel work item")}
+		}
+		
+		// Metadata is a struct, not a pointer, so it can't be nil
+		// Just ensure the item has basic required fields
+		
 		// Update the item's status and schedule
 		item.Metadata.Status = models.WorkStatusCanceled
 		item.CompletedAt = func() *time.Time { t := time.Now(); return &t }()
@@ -1056,22 +1243,16 @@ func (f *FancyListView) nextTab() {
 
 // fuzzyMatch performs case-insensitive fuzzy string matching
 func fuzzyMatch(query, target string) bool {
-	query = strings.ToLower(query)
+	query = strings.ToLower(strings.TrimSpace(query))
 	target = strings.ToLower(target)
 	
-	// Simple substring match for now, can enhance with better fuzzy logic later
-	if strings.Contains(target, query) {
-		return true
+	// If query is empty, don't match anything
+	if query == "" {
+		return false
 	}
 	
-	// Check if all characters in query appear in order in target
-	queryIdx := 0
-	for _, char := range target {
-		if queryIdx < len(query) && char == rune(query[queryIdx]) {
-			queryIdx++
-		}
-	}
-	return queryIdx == len(query)
+	// Exact substring match only - much more precise
+	return strings.Contains(target, query)
 }
 
 // filterAndSortItems filters items based on search and sorts by newest first
@@ -1087,15 +1268,29 @@ func (f *FancyListView) filterAndSortItems() {
 	} else {
 		filtered = make([]*models.Work, 0)
 		for _, item := range allItems {
-			// Search in title, description, tags, and content
-			searchText := strings.Join([]string{
-				item.Title,
-				item.Description,
-				strings.Join(item.TechnicalTags, " "),
-				item.Content,
-			}, " ")
+			// Search primarily in title and description (most relevant)
+			titleMatch := fuzzyMatch(f.searchInput, item.Title)
+			descMatch := fuzzyMatch(f.searchInput, item.Description)
 			
-			if fuzzyMatch(f.searchInput, searchText) {
+			// Search in tags only if not already matched
+			tagMatch := false
+			if !titleMatch && !descMatch {
+				tagMatch = fuzzyMatch(f.searchInput, strings.Join(item.TechnicalTags, " "))
+			}
+			
+			// Search in status for exact status matches
+			statusMatch := false
+			if !titleMatch && !descMatch && !tagMatch {
+				statusMatch = fuzzyMatch(f.searchInput, string(item.Metadata.Status))
+			}
+			
+			// Only search content if query is longer than 4 characters and no other matches
+			contentMatch := false
+			if len(f.searchInput) > 4 && !titleMatch && !descMatch && !tagMatch && !statusMatch {
+				contentMatch = fuzzyMatch(f.searchInput, item.Content)
+			}
+			
+			if titleMatch || descMatch || tagMatch || statusMatch || contentMatch {
 				filtered = append(filtered, item)
 			}
 		}

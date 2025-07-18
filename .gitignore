@@ -48,3 +48,7 @@ Thumbs.db
 
 # Backup files
 *.backup.*
+
+# Claude work directories (now using centralized storage)
+.claude-work/
+.claude-work-backup*/

@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strings"
 	"time"
 )
 
@@ -195,6 +196,44 @@ func (w *Work) GetPriorityNumeric() int {
 	default:
 		return 2 // Default to medium
 	}
+}
+
+// MatchesSearch returns true if the work item matches the search query
+func (w *Work) MatchesSearch(query string) bool {
+	if query == "" {
+		return true
+	}
+	
+	query = strings.ToLower(query)
+	
+	// Search in title
+	if strings.Contains(strings.ToLower(w.Title), query) {
+		return true
+	}
+	
+	// Search in description
+	if strings.Contains(strings.ToLower(w.Description), query) {
+		return true
+	}
+	
+	// Search in content
+	if strings.Contains(strings.ToLower(w.Content), query) {
+		return true
+	}
+	
+	// Search in technical tags
+	for _, tag := range w.TechnicalTags {
+		if strings.Contains(strings.ToLower(tag), query) {
+			return true
+		}
+	}
+	
+	// Search in ID
+	if strings.Contains(strings.ToLower(w.ID), query) {
+		return true
+	}
+	
+	return false
 }
 
 // AddArtifact adds an artifact reference and updates metadata

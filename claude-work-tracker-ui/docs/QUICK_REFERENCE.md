@@ -19,6 +19,11 @@ cw
 - `x` → Cancel item ❌
 - `/` → Search 🔍
 
+### 🤖 Automation (Future)
+- `ctrl+a` → Automation config
+- `ctrl+r` → Run automation rules
+- `ctrl+h` → Toggle automation legend
+
 ### In Detail View
 - `←`/`→` → Previous/Next item
 - `Space` → Page down
@@ -53,6 +58,15 @@ cw
 - `❌ CANCELED` - Stopped (red)
 - `📦 ARCHIVED` - Old (gray)
 
+## 🤖 Automation Indicators
+- `◉` Auto-transitioned
+- `◎` Pending transition
+- `⊘` Blocked
+- `▶` Focus mode  
+- `⚠` Inactive
+- `▰▰▰` Activity bars
+- `⎇` Git-linked
+
 ## 🛠️ Migration Script
 ```bash
 # Check distribution
@@ -68,6 +82,9 @@ cw
 3. Search with `/` to filter long lists
 4. Items sorted newest first
 5. Multi-worktree aware
+6. 🤖 Automation respects user control
+7. 🤖 NOW transitions need confirmation
+8. 🤖 Watch for automation indicators
 
 ## 📝 Work Item Format
 ```yaml
