@@ -343,6 +343,7 @@ type FancyKeyMap struct {
 	PrevItem      key.Binding
 	CompleteItem  key.Binding
 	CancelItem    key.Binding
+	PromoteItem   key.Binding
 	Search        key.Binding
 	ClearSearch   key.Binding
 	AutomationConfig key.Binding
@@ -388,6 +389,10 @@ func DefaultFancyKeyMap() FancyKeyMap {
 		CancelItem: key.NewBinding(
 			key.WithKeys("x"),
 			key.WithHelp("x", "cancel item"),
+		),
+		PromoteItem: key.NewBinding(
+			key.WithKeys("p"),
+			key.WithHelp("p", "promote item"),
 		),
 		Search: key.NewBinding(
 			key.WithKeys("/"),
@@ -743,10 +748,15 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Reload work items after completion
 		// Don't reload immediately if still animating
 		if _, animating := f.animatingItems[msg.workID]; !animating {
-			return f, tea.Batch(
+			// Always reload all tabs to ensure items disappear/appear in correct locations
+			cmds := []tea.Cmd{
 				f.loadScheduleItems(models.ScheduleNow),
+				f.loadScheduleItems(models.ScheduleNext),
+				f.loadScheduleItems(models.ScheduleLater),
 				f.loadScheduleItems(models.ScheduleClosed),
-			)
+			}
+			
+			return f, tea.Batch(cmds...)
 		}
 		// If still animating, delay the reload
 		return f, tea.Tick(200*time.Millisecond, func(t time.Time) tea.Msg {
@@ -878,8 +888,9 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			case key.Matches(msg, f.keys.CompleteItem):
-				// Only allow completing items in the NOW tab
-				if f.getCurrentSchedule() == models.ScheduleNow {
+				// Allow completing items in NOW, NEXT, and LATER tabs
+				currentSchedule := f.getCurrentSchedule()
+				if currentSchedule == models.ScheduleNow || currentSchedule == models.ScheduleNext || currentSchedule == models.ScheduleLater {
 					if selectedItem := f.list.SelectedItem(); selectedItem != nil {
 						if workItem, ok := selectedItem.(WorkItem); ok && workItem.Work != nil {
 							// Trigger animation then complete
@@ -893,8 +904,9 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			case key.Matches(msg, f.keys.CancelItem):
-				// Only allow canceling items in the NOW tab
-				if f.getCurrentSchedule() == models.ScheduleNow {
+				// Allow canceling items in NOW, NEXT, and LATER tabs
+				currentSchedule := f.getCurrentSchedule()
+				if currentSchedule == models.ScheduleNow || currentSchedule == models.ScheduleNext || currentSchedule == models.ScheduleLater {
 					if selectedItem := f.list.SelectedItem(); selectedItem != nil {
 						if workItem, ok := selectedItem.(WorkItem); ok && workItem.Work != nil {
 							// Trigger animation then cancel
@@ -904,6 +916,17 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								f.tickAnimation(workItem.Work.ID, "cancel"),
 								f.cancelWorkItem(workItem.Work),
 							)
+						}
+					}
+				}
+			case key.Matches(msg, f.keys.PromoteItem):
+				// Allow promoting items in NEXT and LATER tabs
+				currentSchedule := f.getCurrentSchedule()
+				if currentSchedule == models.ScheduleNext || currentSchedule == models.ScheduleLater {
+					if selectedItem := f.list.SelectedItem(); selectedItem != nil {
+						if workItem, ok := selectedItem.(WorkItem); ok && workItem.Work != nil {
+							// Promote to next schedule
+							return f, f.promoteWorkItem(workItem.Work)
 						}
 					}
 				}
@@ -1155,6 +1178,10 @@ func (f *FancyListView) renderHelp() string {
 			helpText = "Type to search • enter: confirm • esc: cancel"
 		} else if schedule == models.ScheduleNow {
 			helpText = "tab: switch • ↑/↓: nav • enter: view • c: complete • x: cancel • /: search • q: quit"
+		} else if schedule == models.ScheduleNext {
+			helpText = "tab: switch • ↑/↓: nav • enter: view • c: complete • x: cancel • p: promote • /: search • q: quit"
+		} else if schedule == models.ScheduleLater {
+			helpText = "tab: switch • ↑/↓: nav • enter: view • c: complete • x: cancel • p: promote • /: search • q: quit"
 		} else {
 			helpText = "tab: switch • ↑/↓: nav • enter: view • /: search • d: detail • q: quit"
 		}
@@ -1230,6 +1257,73 @@ func (f *FancyListView) tickAnimation(workID string, action string) tea.Cmd {
 	return tea.Tick(150*time.Millisecond, func(t time.Time) tea.Msg {
 		return animationCompleteMsg{workID: workID, action: action}
 	})
+}
+
+// promoteWorkItem moves a work item to the next schedule (LATER -> NEXT -> NOW)
+func (f *FancyListView) promoteWorkItem(item *models.Work) tea.Cmd {
+	return func() tea.Msg {
+		// Validate inputs to prevent panic
+		if item == nil {
+			return errMsg{err: fmt.Errorf("cannot promote nil work item")}
+		}
+		
+		// Determine target schedule
+		var targetSchedule string
+		switch item.Schedule {
+		case models.ScheduleLater:
+			targetSchedule = models.ScheduleNext
+		case models.ScheduleNext:
+			targetSchedule = models.ScheduleNow
+		default:
+			return errMsg{err: fmt.Errorf("cannot promote item from schedule: %s", item.Schedule)}
+		}
+		
+		// Use data provider if available (centralized storage)
+		if f.dataProvider != nil {
+			if err := f.dataProvider.UpdateWorkSchedule(item.ID, targetSchedule); err != nil {
+				return errMsg{err: fmt.Errorf("failed to promote work item: %w", err)}
+			}
+			// Return workItemCompletedMsg to trigger reload
+			return workItemCompletedMsg{workID: item.ID}
+		}
+		
+		// Fall back to legacy dataClient if no provider
+		if f.dataClient == nil {
+			return errMsg{err: fmt.Errorf("no data provider available - cannot promote work item")}
+		}
+		
+		// Legacy promotion logic
+		item.Schedule = targetSchedule
+		item.UpdatedAt = time.Now()
+		
+		// Auto-migrate to new schedule/directory
+		oldSchedule := item.Schedule
+		
+		// Calculate old path
+		workDir := f.dataClient.GetLocalWorkDir()
+		oldDir := filepath.Join(workDir, "work", strings.ToLower(oldSchedule))
+		oldPath := ""
+		if item.Filename != "" {
+			oldPath = filepath.Join(oldDir, item.Filename)
+		}
+		
+		markdownIO := data.NewMarkdownIO(workDir)
+		
+		// Write to new location
+		if err := markdownIO.WriteWork(item); err != nil {
+			// If write fails, restore original schedule
+			item.Schedule = oldSchedule
+			return errMsg{err: err}
+		}
+		
+		// Delete the old file if it exists and is different from the new path
+		if oldPath != "" && oldPath != item.Filepath {
+			os.Remove(oldPath) // Ignore error as file might not exist
+		}
+		
+		// Reload items to reflect changes
+		return f.loadWorkItems()
+	}
 }
 
 // completeWorkItem marks a work item as completed and moves it to CLOSED
