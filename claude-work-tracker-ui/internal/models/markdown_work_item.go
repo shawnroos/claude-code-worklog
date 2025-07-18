@@ -72,9 +72,10 @@ const (
 
 // Schedule constants for NOW/NEXT/LATER
 const (
-	ScheduleNow   = "now"
-	ScheduleNext  = "next"
-	ScheduleLater = "later"
+	ScheduleNow    = "now"
+	ScheduleNext   = "next"
+	ScheduleLater  = "later"
+	ScheduleClosed = "closed"
 )
 
 // Status constants
