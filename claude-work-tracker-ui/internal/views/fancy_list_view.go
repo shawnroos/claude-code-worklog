@@ -150,8 +150,20 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		statusBadge = statusStyle.Render(badgeText)
 	}
 	
-	// Title line with status badge + title
-	titleLine := lipgloss.JoinHorizontal(lipgloss.Center, statusBadge, " ", titleStyle.Render(item.Title))
+	// Get automation indicators
+	indicators := DefaultAutomationIndicators()
+	automationIndicators := indicators.GetWorkItemIndicators(item)
+	
+	// Title line with status badge + title + automation indicators
+	var titleParts []string
+	titleParts = append(titleParts, statusBadge)
+	titleParts = append(titleParts, " ")
+	titleParts = append(titleParts, titleStyle.Render(item.Title))
+	if automationIndicators != "" {
+		titleParts = append(titleParts, " ")
+		titleParts = append(titleParts, automationIndicators)
+	}
+	titleLine := lipgloss.JoinHorizontal(lipgloss.Center, titleParts...)
 
 	content := titleLine
 
