@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -40,11 +41,8 @@ func NewCentralizedApp() (*CentralizedApp, error) {
 	log.Printf("Work directory: %s", client.GetWorkDir())
 
 	// Create fancy list view with work adapter
-	log.Printf("Creating CentralizedWorkAdapter")
 	adapter := &CentralizedWorkAdapter{client: client}
-	log.Printf("Creating FancyListView with adapter")
 	fancyListView := views.NewFancyListViewWithAdapter(adapter)
-	log.Printf("FancyListView created")
 
 	// Create project switcher
 	projectSwitcher := NewProjectSwitcherModel(client)
@@ -66,10 +64,7 @@ func NewCentralizedApp() (*CentralizedApp, error) {
 }
 
 func (a *CentralizedApp) Init() tea.Cmd {
-	log.Printf("CentralizedApp.Init() called")
-	cmd := a.fancyListView.Init()
-	log.Printf("CentralizedApp.Init() returning command")
-	return cmd
+	return a.fancyListView.Init()
 }
 
 func (a *CentralizedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -202,6 +197,13 @@ func (a *CentralizedWorkAdapter) UpdateWorkSchedule(workID, newSchedule string) 
 	for _, work := range allWork {
 		if work.ID == workID {
 			work.Schedule = newSchedule
+			// If moving to CLOSED and status is still in progress, mark as canceled
+			if newSchedule == models.ScheduleClosed && work.Metadata.Status == models.WorkStatusInProgress {
+				work.Metadata.Status = models.WorkStatusCanceled
+				now := time.Now()
+				work.CompletedAt = &now
+				work.UpdatedAt = now
+			}
 			return a.client.UpdateWork(work)
 		}
 	}
@@ -219,6 +221,7 @@ func (a *CentralizedWorkAdapter) CompleteWork(workID string) error {
 	for _, work := range allWork {
 		if work.ID == workID {
 			work.MarkAsCompleted()
+			work.Schedule = models.ScheduleClosed // Move to CLOSED
 			return a.client.UpdateWork(work)
 		}
 	}

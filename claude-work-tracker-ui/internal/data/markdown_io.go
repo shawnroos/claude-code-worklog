@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -342,6 +341,9 @@ func (m *MarkdownIO) ReadWork(filepath string) (*models.Work, error) {
 
 // WriteWork writes a Work container to a file
 func (m *MarkdownIO) WriteWork(work *models.Work) error {
+	// Store old filepath if it exists
+	oldFilepath := work.Filepath
+	
 	// Generate filename if not set
 	if work.Filename == "" {
 		work.Filename = m.generateWorkFilename(work)
@@ -365,6 +367,11 @@ func (m *MarkdownIO) WriteWork(work *models.Work) error {
 	// Write file
 	if err := ioutil.WriteFile(fullPath, content, 0644); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	// If the file was moved to a different location, remove the old file
+	if oldFilepath != "" && oldFilepath != fullPath {
+		os.Remove(oldFilepath)
 	}
 
 	work.Filepath = fullPath
@@ -646,17 +653,14 @@ func (m *MarkdownIO) ListAllWork() ([]*models.Work, error) {
 
 // listWorkFromDir reads all Work markdown files from a directory
 func (m *MarkdownIO) listWorkFromDir(dir string) ([]*models.Work, error) {
-	log.Printf("listWorkFromDir: Reading directory: %s", dir)
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Printf("listWorkFromDir: Directory does not exist: %s", dir)
 			return []*models.Work{}, nil
 		}
 		return nil, fmt.Errorf("failed to read directory: %w", err)
 	}
 
-	log.Printf("listWorkFromDir: Found %d files in %s", len(files), dir)
 	var items []*models.Work
 	for _, file := range files {
 		if !strings.HasSuffix(file.Name(), ".md") {
@@ -664,18 +668,14 @@ func (m *MarkdownIO) listWorkFromDir(dir string) ([]*models.Work, error) {
 		}
 
 		filepath := filepath.Join(dir, file.Name())
-		log.Printf("listWorkFromDir: Reading file: %s", filepath)
 		work, err := m.ReadWork(filepath)
 		if err != nil {
-			log.Printf("listWorkFromDir: Error reading %s: %v", filepath, err)
 			continue // Skip files that can't be parsed
 		}
 
-		log.Printf("listWorkFromDir: Successfully parsed work item: %s", work.Title)
 		items = append(items, work)
 	}
 
-	log.Printf("listWorkFromDir: Returning %d work items", len(items))
 	return items, nil
 }
 

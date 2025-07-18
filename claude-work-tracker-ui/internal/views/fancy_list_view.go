@@ -3,7 +3,6 @@ package views
 import (
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -35,8 +34,9 @@ func (w WorkItem) FilterValue() string {
 
 // Custom item delegate for fancy list rendering
 type ItemDelegate struct {
-	showDetail bool
-	glamour    *glamour.TermRenderer
+	showDetail     bool
+	glamour        *glamour.TermRenderer
+	animatingItems map[string]string // Reference to parent's animating items
 }
 
 func (d ItemDelegate) Height() int {
@@ -57,6 +57,9 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 
 	item := workItem.Work
 	isSelected := index == m.Index()
+	
+	// Check if this item is animating
+	animationType, isAnimating := d.animatingItems[item.ID]
 
 	// Base styles
 	var (
@@ -99,6 +102,25 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		titleStyle = selectedTitleStyle
 		overviewStyle = selectedOverviewStyle
 		metadataStyle = selectedMetadataStyle
+	}
+	
+	// Apply animation styles
+	if isAnimating {
+		if animationType == "complete" {
+			// Green flash for completion
+			animColor := lipgloss.Color("46") // Bright green
+			statusStyle = statusStyle.Copy().Background(animColor).Foreground(lipgloss.Color("0"))
+			titleStyle = titleStyle.Copy().Foreground(animColor)
+			overviewStyle = overviewStyle.Copy().Foreground(animColor)
+			metadataStyle = metadataStyle.Copy().Foreground(animColor)
+		} else if animationType == "cancel" {
+			// Red flash for cancellation
+			animColor := lipgloss.Color("196") // Bright red
+			statusStyle = statusStyle.Copy().Background(animColor).Foreground(lipgloss.Color("15"))
+			titleStyle = titleStyle.Copy().Foreground(animColor)
+			overviewStyle = overviewStyle.Copy().Foreground(animColor)
+			metadataStyle = metadataStyle.Copy().Foreground(animColor)
+		}
 	}
 
 	// Status/priority badge with inverted background
@@ -268,6 +290,7 @@ type FancyListView struct {
 	searchMode       bool              // Whether search is active
 	searchInput      string            // Current search query
 	filteredItems    []*models.Work    // Filtered results
+	animatingItems   map[string]string // Maps workID to animation type ("complete" or "cancel")
 }
 
 // embeddingState tracks the state of embedded content
@@ -285,6 +308,27 @@ type embeddingLoadedMsg struct {
 	reference string
 	content   string
 	err       error
+}
+
+// workItemCompletedMsg is sent when a work item is completed
+type workItemCompletedMsg struct {
+	workID string
+}
+
+// animateCompletionMsg triggers the green flash animation
+type animateCompletionMsg struct {
+	workID string
+}
+
+// animateCancellationMsg triggers the red flash animation
+type animateCancellationMsg struct {
+	workID string
+}
+
+// animationCompleteMsg signals animation has finished
+type animationCompleteMsg struct {
+	workID string
+	action string // "complete" or "cancel"
 }
 
 // errMsg is already defined in other files, remove duplicate
@@ -471,6 +515,7 @@ func NewFancyListView(dataClient *data.EnhancedClient) *FancyListView {
 		embeddingStates:   make(map[string]embeddingState),
 		lastWidth:         0,
 		ready:             false,
+		animatingItems:    make(map[string]string),
 	}
 }
 
@@ -554,18 +599,15 @@ func NewFancyListViewWithAdapter(dataProvider WorkDataProvider) *FancyListView {
 		embeddingStates:   make(map[string]embeddingState),
 		lastWidth:         0,
 		ready:             false,
+		animatingItems:    make(map[string]string),
 	}
 }
 
 func (f *FancyListView) Init() tea.Cmd {
-	log.Printf("FancyListView.Init() called")
-	cmd := f.loadWorkItems()
-	log.Printf("FancyListView.Init() returning loadWorkItems command")
-	return cmd
+	return f.loadWorkItems()
 }
 
 func (f *FancyListView) loadWorkItems() tea.Cmd {
-	log.Printf("FancyListView.loadWorkItems() called")
 	return tea.Batch(
 		f.loadScheduleItems(models.ScheduleNow),
 		f.loadScheduleItems(models.ScheduleNext),
@@ -575,15 +617,12 @@ func (f *FancyListView) loadWorkItems() tea.Cmd {
 }
 
 func (f *FancyListView) loadScheduleItems(schedule string) tea.Cmd {
-	log.Printf("loadScheduleItems creating command for schedule %s", schedule)
 	return func() tea.Msg {
-		log.Printf("loadScheduleItems executing: Loading items for schedule %s", schedule)
 		var items []*models.Work
 		var err error
 		
 		// Use data provider if available, otherwise fall back to dataClient
 		if f.dataProvider != nil {
-			log.Printf("loadScheduleItems: Using dataProvider for %s", schedule)
 			items, err = f.dataProvider.GetWorkBySchedule(schedule)
 		} else if f.dataClient != nil {
 			items, err = f.dataClient.GetWorkBySchedule(schedule)
@@ -596,8 +635,6 @@ func (f *FancyListView) loadScheduleItems(schedule string) tea.Cmd {
 			// log.Printf("Error loading %s items: %v", schedule, err)
 			return errMsg{err: err}
 		}
-		// Debug: log successful load
-		log.Printf("Loaded %d items for %s", len(items), schedule)
 		return scheduleItemsLoadedMsg{schedule: schedule, items: items}
 	}
 }
@@ -686,17 +723,35 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case scheduleItemsLoadedMsg:
-		log.Printf("scheduleItemsLoadedMsg: Received %d items for schedule %s", len(msg.items), msg.schedule)
 		f.workItems[msg.schedule] = msg.items
 		if !f.ready {
 			f.ready = true
-			log.Printf("scheduleItemsLoadedMsg: Setting ready=true")
 			// Update list immediately when we become ready
 			f.updateListItems()
 		} else if msg.schedule == f.getCurrentSchedule() {
-			log.Printf("scheduleItemsLoadedMsg: Updating current schedule")
 			f.updateListItems()
 		}
+	
+	case animationCompleteMsg:
+		// Animation finished, remove from animating items
+		delete(f.animatingItems, msg.workID)
+		// Don't need to do anything else, the actual completion/cancellation
+		// is handled by the completeWorkItem/cancelWorkItem commands
+		return f, nil
+		
+	case workItemCompletedMsg:
+		// Reload work items after completion
+		// Don't reload immediately if still animating
+		if _, animating := f.animatingItems[msg.workID]; !animating {
+			return f, tea.Batch(
+				f.loadScheduleItems(models.ScheduleNow),
+				f.loadScheduleItems(models.ScheduleClosed),
+			)
+		}
+		// If still animating, delay the reload
+		return f, tea.Tick(200*time.Millisecond, func(t time.Time) tea.Msg {
+			return workItemCompletedMsg{workID: msg.workID}
+		})
 
 	case embeddingLoadedMsg:
 		// Handle async embedding content loading with spinners
@@ -810,8 +865,13 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if f.getCurrentSchedule() == models.ScheduleNow {
 					if selectedItem := f.list.SelectedItem(); selectedItem != nil {
 						if workItem, ok := selectedItem.(WorkItem); ok && workItem.Work != nil {
-							// Mark item as completed and move to CLOSED
-							return f, f.completeWorkItem(workItem.Work)
+							// Trigger animation then complete
+							f.animatingItems[workItem.Work.ID] = "complete"
+							f.updateDelegate() // Update delegate to show animation
+							return f, tea.Batch(
+								f.tickAnimation(workItem.Work.ID, "complete"),
+								f.completeWorkItem(workItem.Work),
+							)
 						}
 					}
 				}
@@ -820,8 +880,13 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if f.getCurrentSchedule() == models.ScheduleNow {
 					if selectedItem := f.list.SelectedItem(); selectedItem != nil {
 						if workItem, ok := selectedItem.(WorkItem); ok && workItem.Work != nil {
-							// Mark item as canceled and move to CLOSED
-							return f, f.cancelWorkItem(workItem.Work)
+							// Trigger animation then cancel
+							f.animatingItems[workItem.Work.ID] = "cancel"
+							f.updateDelegate() // Update delegate to show animation
+							return f, tea.Batch(
+								f.tickAnimation(workItem.Work.ID, "cancel"),
+								f.cancelWorkItem(workItem.Work),
+							)
 						}
 					}
 				}
@@ -1136,10 +1201,18 @@ func (f *FancyListView) updateListItems() {
 
 func (f *FancyListView) updateDelegate() {
 	delegate := ItemDelegate{
-		showDetail: f.showDetail,
-		glamour:    f.glamour,
+		showDetail:     f.showDetail,
+		glamour:        f.glamour,
+		animatingItems: f.animatingItems,
 	}
 	f.list.SetDelegate(delegate)
+}
+
+// tickAnimation creates a command that waits then sends animation complete message
+func (f *FancyListView) tickAnimation(workID string, action string) tea.Cmd {
+	return tea.Tick(150*time.Millisecond, func(t time.Time) tea.Msg {
+		return animationCompleteMsg{workID: workID, action: action}
+	})
 }
 
 // completeWorkItem marks a work item as completed and moves it to CLOSED
@@ -1150,14 +1223,20 @@ func (f *FancyListView) completeWorkItem(item *models.Work) tea.Cmd {
 			return errMsg{err: fmt.Errorf("cannot complete nil work item")}
 		}
 		
-		// Check dataClient
-		if f.dataClient == nil {
-			return errMsg{err: fmt.Errorf("dataClient is nil - cannot complete work item")}
+		// Use data provider if available
+		if f.dataProvider != nil {
+			if err := f.dataProvider.CompleteWork(item.ID); err != nil {
+				return errMsg{err: fmt.Errorf("failed to complete work item: %w", err)}
+			}
+			return workItemCompletedMsg{workID: item.ID}
 		}
 		
-		// Metadata is a struct, not a pointer, so it can't be nil
-		// Just ensure the item has basic required fields
+		// Fall back to legacy dataClient if no provider
+		if f.dataClient == nil {
+			return errMsg{err: fmt.Errorf("no data provider available - cannot complete work item")}
+		}
 		
+		// Legacy completion logic
 		// Update the item's status and schedule
 		item.Metadata.Status = models.WorkStatusCompleted
 		item.CompletedAt = func() *time.Time { t := time.Now(); return &t }()
@@ -1204,14 +1283,24 @@ func (f *FancyListView) cancelWorkItem(item *models.Work) tea.Cmd {
 			return errMsg{err: fmt.Errorf("cannot cancel nil work item")}
 		}
 		
-		// Check dataClient
-		if f.dataClient == nil {
-			return errMsg{err: fmt.Errorf("dataClient is nil - cannot cancel work item")}
+		// Use data provider if available (centralized storage)
+		if f.dataProvider != nil {
+			// For centralized storage, we need to update the status and schedule
+			// The adapter will handle the file movement
+			item.Metadata.Status = models.WorkStatusCanceled
+			item.Schedule = models.ScheduleClosed
+			if err := f.dataProvider.UpdateWorkSchedule(item.ID, models.ScheduleClosed); err != nil {
+				return errMsg{err: fmt.Errorf("failed to cancel work item: %w", err)}
+			}
+			return workItemCompletedMsg{workID: item.ID}
 		}
 		
-		// Metadata is a struct, not a pointer, so it can't be nil
-		// Just ensure the item has basic required fields
+		// Fall back to legacy dataClient if no provider
+		if f.dataClient == nil {
+			return errMsg{err: fmt.Errorf("no data provider available - cannot cancel work item")}
+		}
 		
+		// Legacy cancellation logic follows...
 		// Update the item's status and schedule
 		item.Metadata.Status = models.WorkStatusCanceled
 		item.CompletedAt = func() *time.Time { t := time.Now(); return &t }()
