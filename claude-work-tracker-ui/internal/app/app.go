@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -88,7 +89,7 @@ func NewApp() *App {
 		futureWork:        futureWork,
 		sidebarWidth:      25,
 		useEnhanced:       true, // Default to enhanced view
-		syncEnabled:       true, // Enable real-time sync by default
+		syncEnabled:       false, // Disable real-time sync by default due to panic issues
 		useTabbedView:     false, // Disable tabbed interface
 		useFancyList:      true,  // Enable fancy list interface
 	}
@@ -141,6 +142,13 @@ func (a *App) handleSyncEvent(eventType string, item *models.MarkdownWorkItem) {
 }
 
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Add panic recovery
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("PANIC in App.Update: %v\n", r)
+		}
+	}()
+	
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {

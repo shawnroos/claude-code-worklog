@@ -389,13 +389,28 @@ func (m *MarkdownIO) generateWorkContent(work *models.Work) ([]byte, error) {
 		"schedule":       work.Schedule,
 		"created_at":     work.CreatedAt,
 		"updated_at":     work.UpdatedAt,
-		"started_at":     work.StartedAt,
 		"git_context":    work.GitContext,
 		"session_number": work.SessionNumber,
 		"technical_tags": work.TechnicalTags,
 		"artifact_refs":  work.ArtifactRefs,
-		"group_id":       work.GroupID,
 		"metadata":       work.Metadata,
+	}
+	
+	// Handle optional pointer fields
+	if work.StartedAt != nil {
+		frontmatter["started_at"] = *work.StartedAt
+	}
+	if work.CompletedAt != nil {
+		frontmatter["completed_at"] = *work.CompletedAt
+	}
+	if work.GroupID != "" {
+		frontmatter["group_id"] = work.GroupID
+	}
+	if work.OverviewUpdated != nil {
+		frontmatter["overview_updated"] = *work.OverviewUpdated
+	}
+	if work.UpdatesRef != "" {
+		frontmatter["updates_ref"] = work.UpdatesRef
 	}
 	
 	if err := encoder.Encode(frontmatter); err != nil {
