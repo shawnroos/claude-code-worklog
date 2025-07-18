@@ -314,6 +314,7 @@ func NewFancyListView(dataClient *data.EnhancedClient) *FancyListView {
 		{Name: "NOW", Schedule: models.ScheduleNow, Active: true},
 		{Name: "NEXT", Schedule: models.ScheduleNext, Active: false},
 		{Name: "LATER", Schedule: models.ScheduleLater, Active: false},
+		{Name: "CLOSED", Schedule: models.ScheduleClosed, Active: false},
 	}
 
 	// Create list with custom delegate
@@ -391,6 +392,7 @@ func (f *FancyListView) loadWorkItems() tea.Cmd {
 		f.loadScheduleItems(models.ScheduleNow),
 		f.loadScheduleItems(models.ScheduleNext),
 		f.loadScheduleItems(models.ScheduleLater),
+		f.loadScheduleItems(models.ScheduleClosed),
 	)
 }
 
@@ -469,7 +471,7 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !f.ready {
 			f.ready = true
 			// Load data synchronously when window size is set
-			schedules := []string{models.ScheduleNow, models.ScheduleNext, models.ScheduleLater}
+			schedules := []string{models.ScheduleNow, models.ScheduleNext, models.ScheduleLater, models.ScheduleClosed}
 			for _, schedule := range schedules {
 				if items, err := f.dataClient.GetWorkBySchedule(schedule); err == nil {
 					f.workItems[schedule] = items
@@ -634,6 +636,8 @@ func (f *FancyListView) renderConnectedTabBar() string {
 			symbol = "○"
 		case models.ScheduleLater:
 			symbol = "⊖"
+		case models.ScheduleClosed:
+			symbol = "✓"
 		}
 		
 		tabText := fmt.Sprintf("%s %s (%d)", symbol, tab.Name, count)
@@ -796,6 +800,7 @@ func (f *FancyListView) updateListItems() {
 	
 	var listItems []list.Item
 	for _, item := range items {
+		// All filtering is now done at the data layer
 		listItems = append(listItems, WorkItem{item})
 	}
 	

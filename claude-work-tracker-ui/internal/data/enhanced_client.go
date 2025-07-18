@@ -341,7 +341,43 @@ func (c *EnhancedClient) GetWorkByScheduleProjectWide(schedule string) ([]*model
 	var allWork []*models.Work
 	workDirs := c.Client.scanner.GetAllWorkDirectories()
 	
-	// Aggregate from all discovered .claude-work directories
+	// Special handling for CLOSED - scan all schedules and filter by status
+	if schedule == models.ScheduleClosed {
+		schedules := []string{models.ScheduleNow, models.ScheduleNext, models.ScheduleLater}
+		for _, workDirInfo := range workDirs {
+			tempIO := NewMarkdownIO(workDirInfo.Path)
+			
+			// Check all schedules for completed/canceled items
+			for _, sched := range schedules {
+				items, err := tempIO.ListWork(sched)
+				if err != nil {
+					continue
+				}
+				
+				// Add source context to each work item
+				for _, item := range items {
+					// Only include completed/canceled/archived items
+					if item.Metadata.Status == models.WorkStatusCompleted ||
+					   item.Metadata.Status == models.WorkStatusCanceled ||
+					   item.Metadata.Status == models.WorkStatusArchived {
+						// Store the source directory information
+						if item.GitContext.WorkingDirectory == "" {
+							item.GitContext.WorkingDirectory = workDirInfo.ParentDir
+						}
+						if item.GitContext.Worktree == "" && workDirInfo.RelativePath != "Project Root" {
+							item.GitContext.Worktree = workDirInfo.RelativePath
+						}
+						item.SourceDirectory = workDirInfo.RelativePath
+						item.SourcePath = workDirInfo.Path
+						allWork = append(allWork, item)
+					}
+				}
+			}
+		}
+		return allWork, nil
+	}
+	
+	// Regular schedule handling (NOW, NEXT, LATER)
 	for _, workDirInfo := range workDirs {
 		// Create a temporary MarkdownIO for each directory
 		tempIO := NewMarkdownIO(workDirInfo.Path)
