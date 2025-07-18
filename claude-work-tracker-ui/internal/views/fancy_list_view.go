@@ -297,6 +297,9 @@ type FancyKeyMap struct {
 	CancelItem    key.Binding
 	Search        key.Binding
 	ClearSearch   key.Binding
+	AutomationConfig key.Binding
+	RunAutomation    key.Binding
+	AutomationHelp   key.Binding
 	Quit          key.Binding
 }
 
@@ -345,6 +348,18 @@ func DefaultFancyKeyMap() FancyKeyMap {
 		ClearSearch: key.NewBinding(
 			key.WithKeys("esc"),
 			key.WithHelp("esc", "clear search"),
+		),
+		AutomationConfig: key.NewBinding(
+			key.WithKeys("ctrl+a"),
+			key.WithHelp("ctrl+a", "automation config"),
+		),
+		RunAutomation: key.NewBinding(
+			key.WithKeys("ctrl+r"),
+			key.WithHelp("ctrl+r", "run automation"),
+		),
+		AutomationHelp: key.NewBinding(
+			key.WithKeys("ctrl+h"),
+			key.WithHelp("ctrl+h", "automation help"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
@@ -664,19 +679,34 @@ func (f *FancyListView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			case key.Matches(msg, f.keys.CompleteItem):
-				if selectedItem := f.list.SelectedItem(); selectedItem != nil {
-					if workItem, ok := selectedItem.(WorkItem); ok {
-						// Mark item as completed and move to CLOSED
-						return f, f.completeWorkItem(workItem.Work)
+				// Only allow completing items in the NOW tab
+				if f.getCurrentSchedule() == models.ScheduleNow {
+					if selectedItem := f.list.SelectedItem(); selectedItem != nil {
+						if workItem, ok := selectedItem.(WorkItem); ok {
+							// Mark item as completed and move to CLOSED
+							return f, f.completeWorkItem(workItem.Work)
+						}
 					}
 				}
 			case key.Matches(msg, f.keys.CancelItem):
-				if selectedItem := f.list.SelectedItem(); selectedItem != nil {
-					if workItem, ok := selectedItem.(WorkItem); ok {
-						// Mark item as canceled and move to CLOSED
-						return f, f.cancelWorkItem(workItem.Work)
+				// Only allow canceling items in the NOW tab
+				if f.getCurrentSchedule() == models.ScheduleNow {
+					if selectedItem := f.list.SelectedItem(); selectedItem != nil {
+						if workItem, ok := selectedItem.(WorkItem); ok {
+							// Mark item as canceled and move to CLOSED
+							return f, f.cancelWorkItem(workItem.Work)
+						}
 					}
 				}
+			case key.Matches(msg, f.keys.AutomationConfig):
+				// TODO: Open automation configuration view
+				// This will be implemented when the automation config view is integrated
+			case key.Matches(msg, f.keys.RunAutomation):
+				// TODO: Trigger automation rules manually
+				// This will be implemented when the automation system is integrated
+			case key.Matches(msg, f.keys.AutomationHelp):
+				// TODO: Show automation help/legend
+				// This will be implemented when the automation help system is integrated
 			default:
 				// Let the list handle up/down arrow keys and other navigation
 				f.list, cmd = f.list.Update(msg)
